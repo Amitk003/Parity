@@ -30,16 +30,39 @@ This page lists the Postgres versus Db2 differences that Parity has actually see
 - Category: ERROR
 - Why it matters: simple sanity queries used in health checks can fail on Db2 even when they pass on Postgres.
 
+### 4. Expression SELECTs without FROM
+
+- Queries: `SELECT 'a ' = 'a'`, `SELECT LENGTH('café')`, `SELECT ROUND(2.5)`, `SELECT CASE WHEN '' IS NULL THEN 'null' ELSE 'notnull' END`, `SELECT 1/2`, `SELECT 0.1 + 0.2`, `SELECT 'HELLO' LIKE 'hello'`
+- Postgres: all return a value
+- Db2: all fail with an error
+- Category: ERROR
+- Why it matters: the same root cause as entry 3, but wider. Any expression-only query fails on Db2. Probes in `samples/probes.sql` reproduce all of them.
+
+### 5. Unaliased scalar expression column name
+
+- Query: `SELECT UPPER(name) FROM demo_users WHERE id = 1`
+- Postgres column name: `upper`
+- Db2 column name: `1`
+- Category: COLUMN_NAME
+- Why it matters: the mismatch is not limited to aggregates. Any unaliased function call in the select list gets the expression text as its name on Db2.
+- Status: open. The `aggregate_alias` rule covers aggregates only. Extending it to scalar functions is future work.
+
+## Matched probes (no divergence)
+
+These hypotheses were tested live and both databases agreed:
+
+- `SELECT name FROM demo_users ORDER BY name` including NULL ordering
+- `SELECT COUNT(*) FROM demo_users WHERE name IS NULL`
+
 ## Hypotheses still to confirm
 
 These are expected from the proposal but have not been reproduced on live databases by Parity yet. Do not quote them as facts.
 
-- NULL versus empty string in comparison, join, and sorting.
+- NULL versus empty string in comparison and joins.
 - Rounding rules for decimal values that need half-up or half-even rounding.
 - Timezone offset handling for timestamp with time zone values.
 - Implicit cast behavior that changes values between the databases.
-- NULL sort position and mixed case sort order.
-- CHAR trailing space comparison versus VARCHAR.
+- Mixed case sort order beyond the tested sample data.
 
 ## How to add a new entry
 

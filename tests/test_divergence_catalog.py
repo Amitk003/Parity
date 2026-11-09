@@ -17,6 +17,9 @@ def test_catalog_lists_confirmed_divergences():
     assert "Trailing space and Unicode text" in text
     assert "SELECT without FROM" in text
     assert "SQL0104N" in text
+    assert "Expression SELECTs without FROM" in text
+    assert "Unaliased scalar expression column name" in text
+    assert "Matched probes" in text
 
 
 def test_catalog_marks_hypotheses():
@@ -27,7 +30,7 @@ def test_catalog_marks_hypotheses():
 
 def test_probe_suite_loads():
     queries = load_sql_file(ROOT / "samples" / "probes.sql")
-    assert len(queries) >= 3
+    assert len(queries) >= 14
     assert all(query.read_only for query in queries)
 
 
@@ -36,3 +39,4 @@ def test_probe_suite_covers_catalog_queries():
     sqls = [query.source_sql for query in queries]
     assert "SELECT COUNT(*) FROM demo_users" in sqls
     assert "SELECT 1" in sqls
+    assert "SELECT UPPER(name) FROM demo_users WHERE id = 1" in sqls
