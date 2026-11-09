@@ -1,0 +1,10 @@
+CREATE TABLE llm_cache (
+    cache_key VARCHAR(64) NOT NULL PRIMARY KEY,
+    agent VARCHAR(100) NOT NULL,
+    provider VARCHAR(100) NOT NULL,
+    model VARCHAR(200) NOT NULL,
+    response VARCHAR(4000) NOT NULL,
+    tokens_in INTEGER NOT NULL DEFAULT 0,
+    tokens_out INTEGER NOT NULL DEFAULT 0,
+    latency_ms INTEGER NOT NULL DEFAULT 0
+);
