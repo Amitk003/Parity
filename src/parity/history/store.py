@@ -64,6 +64,10 @@ class RunStore(Protocol):
         """Load one run with its records."""
         ...
 
+    def list_runs(self) -> Sequence[RunRecord]:
+        """List all runs, oldest first."""
+        ...
+
 
 class InMemoryRunStore:
     """Dict backed store. For tests and local runs."""
@@ -95,6 +99,10 @@ class InMemoryRunStore:
     def get_run(self, run_id: int) -> RunRecord:
         """Load one run with its records."""
         return self._require(run_id)
+
+    def list_runs(self) -> Sequence[RunRecord]:
+        """List all runs, oldest first."""
+        return tuple(self._runs.values())
 
     def _require(self, run_id: int) -> RunRecord:
         run = self._runs.get(run_id)
@@ -249,5 +257,35 @@ class Db2RunStore:
                 )
             run.records = tuple(records)
             return run
+        finally:
+            ibm_db.close(conn)
+
+    def list_runs(self) -> Sequence[RunRecord]:
+        """List all runs, oldest first. Records are not attached."""
+        import ibm_db
+
+        conn = self._admin._connect()
+        try:
+            stmt = ibm_db.prepare(
+                conn,
+                "SELECT run_id, source_dir, started_at, finished_at, exit_code "
+                "FROM run ORDER BY run_id",
+            )
+            ibm_db.execute(stmt)
+            runs: list[RunRecord] = []
+            while True:
+                row = ibm_db.fetch_tuple(stmt)
+                if row is None or row is False:
+                    break
+                runs.append(
+                    RunRecord(
+                        run_id=int(row[0]),
+                        source_dir=str(row[1]),
+                        started_at=str(row[2]),
+                        finished_at=str(row[3]),
+                        exit_code=int(row[4]) if row[4] is not None else None,
+                    )
+                )
+            return tuple(runs)
         finally:
             ibm_db.close(conn)
