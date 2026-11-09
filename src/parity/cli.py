@@ -3,6 +3,7 @@
 Usage:
     parity compare --source-sql "SELECT 1" --target-sql "SELECT 1"
     parity run --dir samples --out report.html
+    parity replay --dir samples --cache cache.json --out report.html
     parity kb-review --action list
 
 Exit codes:
@@ -73,6 +74,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Replay mode: agent calls come from the cache only, no network",
     )
     run.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
+    replay = sub.add_parser("replay", help="Replay a run from the gateway cache, zero network")
+    replay.add_argument("--dir", required=True, help="Directory with .sql files")
+    replay.add_argument("--cache", required=True, help="Recorded gateway cache file")
+    replay.add_argument("--out", default="parity-report.html", help="HTML report path")
+    replay.add_argument("--json-out", default="", help="Optional JSON summary path")
+    replay.add_argument("--history", default="", help="Optional run history file path")
+    replay.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
     kb = sub.add_parser("kb-review", help="Review knowledge base candidates")
     kb.add_argument("--action", required=True, choices=("list", "approve", "reject"))
     kb.add_argument("--title", default="", help="Entry title for approve and reject")
@@ -197,11 +205,31 @@ def _run_kb_review(args) -> int:
         return 2
 
 
+def _run_replay(args) -> int:
+    """Replay a workload from cache only. Never touches the network."""
+    from types import SimpleNamespace
+
+    forwarded = SimpleNamespace(
+        dir=args.dir,
+        out=args.out,
+        json_out=args.json_out,
+        history=args.history,
+        regression=False,
+        llm_cache=args.cache,
+        replay=True,
+        bridge=args.bridge,
+    )
+    print("replay mode: agent calls come from cache only")
+    return _run_pipeline(forwarded)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI. Return the exit code."""
     args = build_parser().parse_args(argv)
     if args.command == "run":
         return _run_pipeline(args)
+    if args.command == "replay":
+        return _run_replay(args)
     if args.command == "kb-review":
         return _run_kb_review(args)
     return _run_compare(args)
