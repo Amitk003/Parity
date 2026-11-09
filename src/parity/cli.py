@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from parity.config import load_settings
 from parity.engine.db2 import Db2Executor
@@ -32,9 +33,12 @@ from parity.history.regression import (
 from parity.history.store import RunStore, save_run
 from parity.kb.review import run_review
 from parity.kb.store import Db2Kb, InMemoryKb
-from parity.pipeline import run_pipeline
+from parity.pipeline import llm_settings_from_env, run_pipeline
 from parity.report.html import render_html, render_json_summary
 from parity.runner import run_comparison
+
+if TYPE_CHECKING:
+    from parity.gateway.client import Gateway
 
 _EXIT_CODES = {
     ComparisonStatus.MATCH: 0,
@@ -61,6 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--regression",
         action="store_true",
         help="Compare against the last passing run in --history",
+    )
+    run.add_argument("--llm-cache", default="", help="Optional gateway cache file")
+    run.add_argument(
+        "--replay",
+        action="store_true",
+        help="Replay mode: agent calls come from the cache only, no network",
     )
     run.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
     kb = sub.add_parser("kb-review", help="Review knowledge base candidates")
@@ -99,6 +109,35 @@ def _pipeline_exit_code(reports) -> int:
     return 2
 
 
+def _build_gateway(args) -> Gateway | None:
+    """Build the optional gateway for the run command."""
+    if not (args.llm_cache or args.replay):
+        return None
+    from parity.gateway.cache import InMemoryCache
+    from parity.gateway.client import Gateway
+    from parity.gateway.json_cache import JsonGatewayCache
+    from parity.gateway.types import ProviderConfig
+
+    model, base_url, api_key = llm_settings_from_env()
+    if args.replay and not api_key:
+        base_url = "http://localhost"
+    cache = (
+        JsonGatewayCache(Path(args.llm_cache)) if args.llm_cache else InMemoryCache()
+    )
+    return Gateway(
+        providers=[
+            ProviderConfig(
+                name="live" if api_key else "replay",
+                base_url=base_url,
+                model=model,
+                api_key=api_key,
+            )
+        ],
+        cache=cache,
+        replay_only=args.replay,
+    )
+
+
 def _run_pipeline(args) -> int:
     source_settings, db2_settings = load_settings()
     source = PostgresExecutor(source_settings)
@@ -106,11 +145,13 @@ def _run_pipeline(args) -> int:
         target = Db2BridgeExecutor(db2_settings)
     else:
         target = Db2Executor(db2_settings)
-    reports = run_pipeline(Path(args.dir), source, target)
+    gateway = _build_gateway(args)
+    reports = run_pipeline(Path(args.dir), source, target, gateway=gateway)
     exit_code = _pipeline_exit_code(reports)
     run_id: int | None = None
     regression: RegressionResult | None = None
     store: RunStore | None = None
+    llm_usage = gateway.report.as_dict() if gateway is not None else None
     if args.history:
         store = JsonRunStore(Path(args.history))
         if args.regression:
@@ -128,7 +169,13 @@ def _run_pipeline(args) -> int:
     print(f"report written: {args.out}")
     if args.json_out:
         Path(args.json_out).write_text(
-            render_json_summary(reports, run_id=run_id, regression=regression.as_dict() if regression else None), encoding="utf-8"
+            render_json_summary(
+                reports,
+                run_id=run_id,
+                regression=regression.as_dict() if regression else None,
+                llm_usage=llm_usage,
+            ),
+            encoding="utf-8",
         )
         print(f"summary written: {args.json_out}")
     return exit_code
