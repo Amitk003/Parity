@@ -32,7 +32,7 @@ def run_and_encode(sql: str, settings) -> dict[str, Any]:
     try:
         stmt = ibm_db.exec_immediate(conn, sql)
         columns = [
-            ibm_db.result_column_name(stmt, i)
+            ibm_db.field_name(stmt, i)
             for i in range(1, ibm_db.num_fields(stmt) + 1)
         ]
         rows: list[list[Any]] = []

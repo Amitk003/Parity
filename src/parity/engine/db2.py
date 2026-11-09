@@ -47,7 +47,7 @@ class Db2Executor:
         conn = ibm_db.connect(_connection_string(self._settings), "", "")
         try:
             stmt = ibm_db.exec_immediate(conn, sql)
-            columns = tuple(ibm_db.result_column_name(stmt, i) for i in range(1, ibm_db.num_fields(stmt) + 1))
+            columns = tuple(ibm_db.field_name(stmt, i) for i in range(1, ibm_db.num_fields(stmt) + 1))
             rows: list[tuple] = []
             while True:
                 row = ibm_db.fetch_tuple(stmt)
