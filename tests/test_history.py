@@ -111,7 +111,7 @@ def test_pipeline_with_history(tmp_path):
     (tmp_path / "q.sql").write_text("SELECT COUNT(*) FROM demo_users;", encoding="utf-8")
     result_set = ResultSet(columns=("count",), rows=((3,),))
     source = InMemoryExecutor({"SELECT COUNT(*) FROM demo_users": result_set})
-    target = InMemoryExecutor({'SELECT COUNT(*) FROM "DEMO_USERS"': result_set})
+    target = InMemoryExecutor({'SELECT COUNT(*) AS COUNT FROM "DEMO_USERS"': result_set})
     reports = run_pipeline(tmp_path, source, target)
     store = InMemoryRunStore()
     run_id = save_run(store, str(tmp_path), reports, 0)
