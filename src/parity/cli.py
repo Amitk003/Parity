@@ -2,6 +2,7 @@
 
 Usage:
     parity compare --source-sql "SELECT 1" --target-sql "SELECT 1"
+    parity ingest --dir samples
     parity run --dir samples --out report.html
     parity replay --dir samples --cache cache.json --out report.html
     parity kb-review --action list
@@ -81,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--json-out", default="", help="Optional JSON summary path")
     replay.add_argument("--history", default="", help="Optional run history file path")
     replay.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
+    ingest = sub.add_parser("ingest", help="Inspect a workload directory without a database")
+    ingest.add_argument("--dir", required=True, help="Directory with .sql files")
     kb = sub.add_parser("kb-review", help="Review knowledge base candidates")
     kb.add_argument("--action", required=True, choices=("list", "approve", "reject"))
     kb.add_argument("--title", default="", help="Entry title for approve and reject")
@@ -195,6 +198,26 @@ def _run_pipeline(args) -> int:
     return exit_code
 
 
+def _run_ingest(args) -> int:
+    from parity.ingest.loader import deduplicate, load_sql_dir
+    from parity.translate.rules import find_untranslatable
+
+    queries = deduplicate(load_sql_dir(Path(args.dir)))
+    read_only = sum(1 for query in queries if query.read_only)
+    write = len(queries) - read_only
+    untranslatable = sum(
+        1 for query in queries if find_untranslatable(query.source_sql)
+    )
+    tables = sorted({table for query in queries for table in query.tables})
+    print(f"queries: {len(queries)}")
+    print(f"read only: {read_only}")
+    print(f"write: {write}")
+    print(f"untranslatable by rules: {untranslatable}")
+    if tables:
+        print(f"tables: {', '.join(tables)}")
+    return 0
+
+
 def _run_kb_review(args) -> int:
     _, db2_settings = load_settings()
     if args.store == "db2":
@@ -236,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_pipeline(args)
     if args.command == "replay":
         return _run_replay(args)
+    if args.command == "ingest":
+        return _run_ingest(args)
     if args.command == "kb-review":
         return _run_kb_review(args)
     return _run_compare(args)
