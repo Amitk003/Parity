@@ -75,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Replay mode: agent calls come from the cache only, no network",
     )
     run.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
+    run.add_argument("--concurrency", type=int, default=1, help="Queries to run at once")
     replay = sub.add_parser("replay", help="Replay a run from the gateway cache, zero network")
     replay.add_argument("--dir", required=True, help="Directory with .sql files")
     replay.add_argument("--cache", required=True, help="Recorded gateway cache file")
@@ -163,7 +164,9 @@ def _run_pipeline(args) -> int:
     else:
         target = Db2Executor(db2_settings)
     gateway = _build_gateway(args)
-    reports = run_pipeline(Path(args.dir), source, target, gateway=gateway)
+    reports = run_pipeline(
+        Path(args.dir), source, target, gateway=gateway, concurrency=args.concurrency
+    )
     exit_code = _pipeline_exit_code(reports)
     run_id: int | None = None
     regression: RegressionResult | None = None
