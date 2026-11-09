@@ -12,6 +12,7 @@ The translator rewrites PostgreSQL SQL into Db2 SQL with safe rules. It runs bef
 - `now_to_current_timestamp`: `now()` becomes `CURRENT_TIMESTAMP`.
 - `random_to_rand`: `random()` becomes `RAND()`.
 - `substring_from_to_comma`: `SUBSTRING(name FROM 2 FOR 3)` becomes `SUBSTRING(name, 2, 3)`.
+- `aggregate_alias`: a bare `COUNT(*)` becomes `COUNT(*) AS COUNT`. Db2 names an unaliased aggregate column by its expression text, Postgres names it by the function. The alias makes both return the same name. Applied to `COUNT`, `SUM`, `MIN`, `MAX`, and `AVG` only in the select list position, which means before `,`, `)`, `FROM`, or the end of the query. `HAVING COUNT(*) > 1` and `ORDER BY COUNT(*) DESC` are left alone. One known limit: a bare `COUNT(*)` at the very end of `ORDER BY` gets aliased by mistake, the query then fails loudly on Db2. Alias those by hand today.
 
 ## Untranslatable patterns
 

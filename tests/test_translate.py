@@ -73,3 +73,35 @@ def test_rules_listed():
 def test_combined_rewrites_recorded():
     result = translate("SELECT id::int FROM users WHERE name ILIKE 'a%' LIMIT 5")
     assert set(result.applied_rules) == {"cast_double_colon", "ilike_to_upper_like", "limit_offset_to_fetch"}
+
+
+def test_aggregate_alias_bare_count():
+    result = translate("SELECT COUNT(*) FROM demo_users")
+    assert result.db2_sql == "SELECT COUNT(*) AS COUNT FROM demo_users"
+    assert "aggregate_alias" in result.applied_rules
+
+
+def test_aggregate_alias_lowercase_keeps_lcase():
+    result = translate("SELECT count(*) FROM t")
+    assert result.db2_sql == "SELECT count(*) AS count FROM t"
+
+
+def test_aggregate_alias_multiple_columns():
+    result = translate("SELECT SUM(price), COUNT(*) FROM t")
+    assert result.db2_sql == "SELECT SUM(price) AS SUM, COUNT(*) AS COUNT FROM t"
+
+
+def test_aggregate_alias_skips_explct_alias():
+    assert translate("SELECT COUNT(*) AS total FROM t").db2_sql == "SELECT COUNT(*) AS total FROM t"
+    assert "aggregate_alias" not in translate(
+        "SELECT COUNT(*) AS total FROM t"
+    ).applied_rules
+
+
+def test_aggregate_alias_skips_having_and_order():
+    result = translate("SELECT dept FROM t GROUP BY dept HAVING COUNT(*) > 1 ORDER BY dept")
+    assert "aggregate_alias" not in result.applied_rules
+    assert "HAVING COUNT(*) > 1" in result.db2_sql
+    result = translate("SELECT name FROM t ORDER BY COUNT(*) DESC")
+    assert "aggregate_alias" not in result.applied_rules
+    assert "ORDER BY COUNT(*) DESC" in result.db2_sql
