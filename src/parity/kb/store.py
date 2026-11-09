@@ -206,6 +206,20 @@ class Db2Kb:
         conn = self._admin._connect()
         try:
             stmt = ibm_db.prepare(
+                conn, "SELECT verified FROM known_difference WHERE title = ?"
+            )
+            ibm_db.bind_param(stmt, 1, title)
+            ibm_db.execute(stmt)
+            row = ibm_db.fetch_tuple(stmt)
+            if row is None or row is False:
+                raise KeyError(f"unknown entry: {title}")
+            if int(row[0]) == 1:
+                raise ValueError("verified entries cannot be rejected")
+        finally:
+            ibm_db.close(conn)
+        conn = self._admin._connect()
+        try:
+            stmt = ibm_db.prepare(
                 conn,
                 "DELETE FROM known_difference WHERE title = ? AND verified = 0",
             )
