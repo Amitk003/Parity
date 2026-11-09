@@ -1,0 +1,68 @@
+name: parity-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: pytest -q
+
+  parity-live:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: Start databases
+        run: docker compose up -d postgres db2
+      - name: Build bridge image
+        run: docker build -f Dockerfile.bridge -t parity-bridge .
+      - name: Seed sample data
+        run: >-
+          docker run --rm
+          --add-host=host.docker.internal:host-gateway
+          -v $PWD/scripts:/app/scripts
+          -e PARITY_SOURCE_HOST=host.docker.internal
+          -e PARITY_SOURCE_USER=parity
+          -e PARITY_SOURCE_PASSWORD=change-me
+          -e PARITY_SOURCE_DB=parity_source
+          -e PARITY_DB2_HOST=host.docker.internal
+          -e PARITY_DB2_USER=db2inst1
+          -e PARITY_DB2_PASSWORD=change-me
+          -e PARITY_DB2_DB=parity
+          parity-bridge python /app/scripts/seed_sample.py
+      - name: Run parity on samples
+        env:
+          PARITY_SOURCE_HOST: localhost
+          PARITY_SOURCE_PORT: "5432"
+          PARITY_SOURCE_USER: parity
+          PARITY_SOURCE_PASSWORD: change-me
+          PARITY_SOURCE_DB: parity_source
+          PARITY_DB2_HOST: host.docker.internal
+          PARITY_DB2_USER: db2inst1
+          PARITY_DB2_PASSWORD: change-me
+          PARITY_DB2_DB: parity
+        run: python -m parity.cli run --dir samples --out parity-report.html --json-out parity-summary.json --history parity-history.json --bridge
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-report
+          path: |
+            parity-report.html
+            parity-summary.json
+            parity-history.json
+          if-no-files-found: ignore
