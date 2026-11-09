@@ -24,7 +24,7 @@ ORDER BY table_name
 _COLUMNS_SQL = """
 SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
-WHERE table_schema = 'public' AND table_name = ?
+WHERE table_schema = 'public' AND table_name = %s
 ORDER BY ordinal_position
 """
 
