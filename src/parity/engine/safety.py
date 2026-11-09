@@ -46,3 +46,19 @@ def assert_read_only(sql: str) -> None:
             return
         raise ValueError("WITH query without SELECT is not allowed")
     raise ValueError(f"only SELECT queries are allowed, got: {first}")
+
+
+DEFAULT_TIMEOUT_SECONDS = 30.0
+DEFAULT_ROW_LIMIT = 100_000
+
+
+def validate_timeout(timeout_seconds: float) -> None:
+    """Raise ValueError when the timeout cannot work."""
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+
+
+def validate_row_limit(row_limit: int) -> None:
+    """Raise ValueError when the row limit cannot work."""
+    if row_limit <= 0:
+        raise ValueError("row_limit must be positive")

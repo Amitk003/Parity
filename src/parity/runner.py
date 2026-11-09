@@ -11,6 +11,7 @@ from parity.engine.compare import EngineConfig, compare_result_sets
 from parity.engine.executor import DatabaseExecutor
 from parity.engine.nondeterministic import find_nondeterministic_calls
 from parity.engine.result import ComparisonResult, ComparisonStatus
+from parity.engine.safety import DEFAULT_TIMEOUT_SECONDS, validate_timeout
 
 
 def _error_result(message: str) -> ComparisonResult:
@@ -26,7 +27,7 @@ def run_comparison(
     source_sql: str,
     target_sql: str,
     config: EngineConfig | None = None,
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> ComparisonResult:
     """Run both queries and compare. Return the verdict.
 
@@ -35,6 +36,7 @@ def run_comparison(
     ERROR with the error text. A verdict of MATCH only
     comes from the comparator.
     """
+    validate_timeout(timeout_seconds)
     calls = find_nondeterministic_calls(source_sql)
     if calls:
         return ComparisonResult(
