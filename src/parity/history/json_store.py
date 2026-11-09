@@ -73,6 +73,10 @@ class JsonRunStore:
         """Load one run with its records."""
         return self._require(run_id)
 
+    def list_runs(self) -> Sequence[RunRecord]:
+        """List all runs, oldest first."""
+        return tuple(self._runs)
+
     def _require(self, run_id: int) -> RunRecord:
         run = next((item for item in self._runs if item.run_id == run_id), None)
         if run is None:

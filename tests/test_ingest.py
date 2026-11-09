@@ -85,3 +85,16 @@ def test_deduplicate_keeps_first():
     unique = deduplicate(queries)
     assert len(unique) == 2
     assert unique[0].source_sql == "SELECT 1"
+
+def test_load_sql_file_with_bom(tmp_path: Path):
+    path = tmp_path / "q.sql"
+    path.write_bytes(b"\xef\xbb\xbfSELECT 1; SELECT 2;")
+    queries = load_sql_file(path)
+    assert len(queries) == 2
+    assert all(q.read_only for q in queries)
+
+
+def test_load_sql_text_with_bom():
+    queries = load_sql_text("\ufeffSELECT 1", origin="inline")
+    assert queries[0].read_only
+    assert queries[0].source_sql == "SELECT 1"

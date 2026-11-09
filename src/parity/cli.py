@@ -23,7 +23,13 @@ from parity.engine.db2_bridge import Db2BridgeExecutor
 from parity.engine.postgres import PostgresExecutor
 from parity.engine.result import ComparisonStatus
 from parity.history.json_store import JsonRunStore
-from parity.history.store import save_run
+from parity.history.regression import (
+    RegressionResult,
+    compare_to_baseline,
+    find_last_passing,
+    format_regression,
+)
+from parity.history.store import RunStore, save_run
 from parity.kb.review import run_review
 from parity.kb.store import Db2Kb, InMemoryKb
 from parity.pipeline import run_pipeline
@@ -51,6 +57,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--out", default="parity-report.html", help="HTML report path")
     run.add_argument("--json-out", default="", help="Optional JSON summary path")
     run.add_argument("--history", default="", help="Optional run history file path")
+    run.add_argument(
+        "--regression",
+        action="store_true",
+        help="Compare against the last passing run in --history",
+    )
     run.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
     kb = sub.add_parser("kb-review", help="Review knowledge base candidates")
     kb.add_argument("--action", required=True, choices=("list", "approve", "reject"))
@@ -98,8 +109,18 @@ def _run_pipeline(args) -> int:
     reports = run_pipeline(Path(args.dir), source, target)
     exit_code = _pipeline_exit_code(reports)
     run_id: int | None = None
+    regression: RegressionResult | None = None
+    store: RunStore | None = None
     if args.history:
         store = JsonRunStore(Path(args.history))
+        if args.regression:
+            baseline = find_last_passing(store)
+            if baseline is None:
+                print("regression base: no passing run in history yet")
+            else:
+                regression = compare_to_baseline(reports, baseline)
+                print(format_regression(regression))
+    if args.history and store is not None:
         run_id = save_run(store, args.dir, reports, exit_code)
         print(f"history written: {args.history} (run id {run_id})")
     title = f"Parity report (run id {run_id})" if run_id is not None else "Parity report"
@@ -107,7 +128,7 @@ def _run_pipeline(args) -> int:
     print(f"report written: {args.out}")
     if args.json_out:
         Path(args.json_out).write_text(
-            render_json_summary(reports, run_id=run_id), encoding="utf-8"
+            render_json_summary(reports, run_id=run_id, regression=regression.as_dict() if regression else None), encoding="utf-8"
         )
         print(f"summary written: {args.json_out}")
     return exit_code

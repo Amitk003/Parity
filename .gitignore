@@ -32,7 +32,5 @@ dist/
 *.egg
 coverage/
 htmlcov/
-parity-report*.html
-parity-report*.json
-parity-summary*.json
-parity-history*.json
+parity-*.html
+parity-*.json
