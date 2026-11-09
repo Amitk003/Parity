@@ -34,12 +34,11 @@ class PostgresExecutor:
             f"dbname={self._settings.database} user={self._settings.user} "
             f"password={self._settings.password}"
         )
-        with psycopg.connect(conninfo, autocommit=True) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(f"SET statement_timeout = {timeout_ms}")
-                cursor.execute(sql)
-                columns = tuple(col.name for col in cursor.description)
-                rows = cursor.fetchmany(self._row_limit + 1)
-                if len(rows) > self._row_limit:
-                    raise ValueError(f"result exceeds row limit of {self._row_limit}")
-                return ResultSet(columns=columns, rows=tuple(tuple(r) for r in rows))
+        with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
+            cursor.execute(f"SET statement_timeout = {timeout_ms}")
+            cursor.execute(sql)
+            columns = tuple(col.name for col in cursor.description)
+            rows = cursor.fetchmany(self._row_limit + 1)
+            if len(rows) > self._row_limit:
+                raise ValueError(f"result exceeds row limit of {self._row_limit}")
+            return ResultSet(columns=columns, rows=tuple(tuple(r) for r in rows))
