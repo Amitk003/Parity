@@ -23,6 +23,22 @@ class ColumnFuzz:
     column: str
     categories: tuple[str, ...]
     values: tuple[Any, ...]
+    skipped_categories: tuple[str, ...] = ()
+
+
+def _varchar_width(db2_type: str) -> int | None:
+    """Return the length inside VARCHAR(n), or None."""
+    import re
+
+    match = re.search(r"\(\s*(\d+)\s*\)", db2_type.upper())
+    return int(match.group(1)) if match else None
+
+
+def _fit_width(value: Any, width: int | None) -> Any:
+    """Truncate long strings to the column width."""
+    if width is not None and isinstance(value, str) and len(value) > width:
+        return value[:width]
+    return value
 
 
 @dataclass(frozen=True)
@@ -43,15 +59,31 @@ class FuzzPlan:
 
 
 def build_plan(table: TableDef, seed: int = 42) -> FuzzPlan:
-    """Build a plan from a table definition."""
+    """Build a plan from a table definition.
+
+    NOT NULL columns never get the null category. Text
+    values that are longer than the column width are cut
+    to the width, so fuzz rows always fit the column.
+    Skipped categories are recorded on each column.
+    """
     columns: list[ColumnFuzz] = []
     for col in table.columns:
         categories = categories_for_db2_type(col.db2_type)
+        skipped: list[str] = []
+        if not col.nullable and "null" in categories:
+            categories = tuple(c for c in categories if c != "null")
+            skipped.append("null")
+        width = _varchar_width(col.db2_type)
         values: list[Any] = []
         for category in categories:
-            values.extend(values_for_category(category))
+            values.extend(_fit_width(value, width) for value in values_for_category(category))
         columns.append(
-            ColumnFuzz(column=col.name, categories=categories, values=tuple(values))
+            ColumnFuzz(
+                column=col.name,
+                categories=categories,
+                values=tuple(values),
+                skipped_categories=tuple(skipped),
+            )
         )
     return FuzzPlan(table=table.name, columns=tuple(columns), seed=seed)
 
