@@ -51,6 +51,24 @@ class ScoredDifference:
     distance: float
 
 
+def _vector_literal(embedding: tuple[float, ...]) -> str:
+    """Build a Db2 VECTOR literal from our own floats.
+
+    Bound parameters cannot carry VECTOR values through
+    this driver, so the literal is inlined. Values are
+    validated floats from our embedder, never user text.
+    """
+    if len(embedding) != 384:
+        raise ValueError("embedding must have 384 values")
+    parts = []
+    for value in embedding:
+        number = float(value)
+        if number != number or number in (float("inf"), float("-inf")):
+            raise ValueError("embedding values must be finite")
+        parts.append(f"{number:.6f}")
+    return "VECTOR('[" + ",".join(parts) + "]', 384, FLOAT32)"
+
+
 class KbStore(Protocol):
     """Store interface for known differences."""
 
@@ -134,11 +152,12 @@ class Db2Kb:
 
         conn = self._admin._connect()
         try:
+            literal = _vector_literal(entry.embedding)
             stmt = ibm_db.prepare(
                 conn,
                 "INSERT INTO known_difference "
                 "(title, source_pattern, db2_pattern, cause, fix_template, verified, evidence_run_id, embedding) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, VECTOR(?, 384, FLOAT32))",
+                f"VALUES (?, ?, ?, ?, ?, ?, ?, {literal})",
             )
             values = [
                 entry.title,
@@ -151,8 +170,6 @@ class Db2Kb:
             ]
             for index, value in enumerate(values, start=1):
                 ibm_db.bind_param(stmt, index, value)
-            vector_text = ",".join(f"{value:.6f}" for value in entry.embedding)
-            ibm_db.bind_param(stmt, 8, vector_text)
             ibm_db.execute(stmt)
         finally:
             ibm_db.close(conn)
@@ -191,17 +208,16 @@ class Db2Kb:
         import ibm_db
 
         query_vector = self._embedder.embed(query)
-        vector_text = ",".join(f"{value:.6f}" for value in query_vector)
+        literal = _vector_literal(query_vector)
         conn = self._admin._connect()
         try:
             stmt = ibm_db.prepare(
                 conn,
                 "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
-                "VECTOR_DISTANCE(embedding, VECTOR(?, 384, FLOAT32), COSINE) AS dist "
+                f"VECTOR_DISTANCE(embedding, {literal}, COSINE) AS dist "
                 "FROM known_difference WHERE verified = 1 ORDER BY dist FETCH FIRST ? ROWS ONLY",
             )
-            ibm_db.bind_param(stmt, 1, vector_text)
-            ibm_db.bind_param(stmt, 2, limit)
+            ibm_db.bind_param(stmt, 1, limit)
             ibm_db.execute(stmt)
             results: list[ScoredDifference] = []
             while True:
