@@ -77,6 +77,22 @@ class ScoredDifference:
     distance: float
 
 
+@dataclass(frozen=True)
+class SearchStats:
+    """Reuse counters for knowledge base search."""
+
+    searches: int = 0
+    hits: int = 0
+    misses: int = 0
+
+    @property
+    def hit_rate(self) -> float:
+        """Share of searches that returned at least one hit."""
+        if self.searches == 0:
+            return 0.0
+        return self.hits / self.searches
+
+
 def _vector_literal(embedding: tuple[float, ...]) -> str:
     """Build a Db2 VECTOR literal from our own floats.
 
@@ -127,6 +143,16 @@ class InMemoryKb:
     def __init__(self, embedder: HashingEmbedder | None = None) -> None:
         self._embedder = embedder or HashingEmbedder()
         self._entries: dict[str, KnownDifference] = {}
+        self._searches = 0
+        self._hits = 0
+
+    def stats(self) -> SearchStats:
+        """Search and hit counters. Reuse is hits over searches."""
+        return SearchStats(
+            searches=self._searches,
+            hits=self._hits,
+            misses=self._searches - self._hits,
+        )
 
     def add(self, entry: KnownDifference) -> None:
         """Add one entry. Embeds it if needed."""
@@ -160,7 +186,11 @@ class InMemoryKb:
             if entry.verified and entry.matches_category(category)
         ]
         scored.sort(key=lambda item: item.distance)
-        return tuple(scored[:limit])
+        results = tuple(scored[:limit])
+        self._searches += 1
+        if results:
+            self._hits += 1
+        return results
 
     def list_candidates(self) -> tuple[KnownDifference, ...]:
         """List unverified entries for human review."""
@@ -175,6 +205,16 @@ class Db2Kb:
     def __init__(self, admin, embedder: HashingEmbedder | None = None) -> None:
         self._admin = admin
         self._embedder = embedder or HashingEmbedder()
+        self._searches = 0
+        self._hits = 0
+
+    def stats(self) -> SearchStats:
+        """Search and hit counters for this process."""
+        return SearchStats(
+            searches=self._searches,
+            hits=self._hits,
+            misses=self._searches - self._hits,
+        )
 
     def create_table(self) -> None:
         """Create the known_difference table."""
@@ -323,6 +363,10 @@ class Db2Kb:
                 )
                 if entry.matches_category(category):
                     results.append(ScoredDifference(entry, float(row[5])))
-            return tuple(results[:limit])
+            results = results[:limit]
+            self._searches += 1
+            if results:
+                self._hits += 1
+            return tuple(results)
         finally:
             ibm_db.close(conn)
