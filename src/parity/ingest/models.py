@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from parity.engine.nondeterministic import find_nondeterministic_calls
 from parity.engine.safety import assert_read_only
@@ -77,7 +77,7 @@ def tag_query(sql: str, origin: str) -> WorkloadQuery:
         tags.append("nondeterministic")
     if tables:
         tags.append("has_tables")
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     return WorkloadQuery(
         source_sql=text,
         origin=origin,
