@@ -36,7 +36,7 @@ def values_for_category(category: str) -> tuple[Any, ...]:
         "trailing_space": ("alice ", "bob  "),
         "mixed_case": ("Alice", "ALICE", "aLiCe"),
         "unicode": ("caf\u00e9", "na\u00efve", "\u65e5\u672c", "emoji \U0001f600"),
-        "long_string": ("x" * 200,),
+        "long_string": ("x" * 40,),
         "extreme_int": (0, -1, 2147483647, -2147483648),
         "rounding_number": (Decimal("2.5"), Decimal("3.5"), Decimal("0.125"), Decimal("-2.5")),
         "dst_date": (

@@ -14,7 +14,7 @@ The fuzzer makes tricky test rows for each table. The same rows load into both d
 - `trailing_space`: text with trailing spaces.
 - `mixed_case`: upper, lower, and mixed case.
 - `unicode`: accented text, CJK text, emoji.
-- `long_string`: 500 characters.
+- `long_string`: 40 characters. It fits most VARCHAR columns. Column width is not yet tracked, so very narrow columns may still truncate. That is a known limit.
 - `extreme_int`: zero, minus one, max and min int.
 - `rounding_number`: half values that rounding rules treat differently.
 - `dst_date`: daylight saving change dates and a leap date.
