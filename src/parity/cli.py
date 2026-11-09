@@ -3,6 +3,7 @@
 Usage:
     parity compare --source-sql "SELECT 1" --target-sql "SELECT 1"
     parity run --dir samples --out report.html
+    parity kb-review --action list
 
 Exit codes:
     0 - MATCH or all queries passed
@@ -21,6 +22,8 @@ from parity.engine.db2 import Db2Executor
 from parity.engine.db2_bridge import Db2BridgeExecutor
 from parity.engine.postgres import PostgresExecutor
 from parity.engine.result import ComparisonStatus
+from parity.kb.review import run_review
+from parity.kb.store import Db2Kb, InMemoryKb
 from parity.pipeline import run_pipeline
 from parity.report.html import render_html, render_json_summary
 from parity.runner import run_comparison
@@ -46,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--out", default="parity-report.html", help="HTML report path")
     run.add_argument("--json-out", default="", help="Optional JSON summary path")
     run.add_argument("--bridge", action="store_true", help="Use the Linux bridge for Db2")
+    kb = sub.add_parser("kb-review", help="Review knowledge base candidates")
+    kb.add_argument("--action", required=True, choices=("list", "approve", "reject"))
+    kb.add_argument("--title", default="", help="Entry title for approve and reject")
+    kb.add_argument("--store", choices=("memory", "db2"), default="memory")
     return parser
 
 
@@ -89,11 +96,29 @@ def _run_pipeline(args) -> int:
     return 2
 
 
+def _run_kb_review(args) -> int:
+    _, db2_settings = load_settings()
+    if args.store == "db2":
+        from parity.sync.db2_admin import Db2Admin
+
+        store = Db2Kb(Db2Admin(db2_settings))
+    else:
+        store = InMemoryKb()
+    try:
+        print(run_review(store, args.action, args.title))
+        return 0
+    except Exception as exc:  # noqa: BLE001 - CLI boundary turns any error into exit 2
+        print(f"error: {exc}")
+        return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI. Return the exit code."""
     args = build_parser().parse_args(argv)
     if args.command == "run":
         return _run_pipeline(args)
+    if args.command == "kb-review":
+        return _run_kb_review(args)
     return _run_compare(args)
 
 

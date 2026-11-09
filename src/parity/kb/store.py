@@ -89,6 +89,10 @@ class KbStore(Protocol):
         """Search verified entries. Return closest first."""
         ...
 
+    def list_candidates(self) -> tuple[KnownDifference, ...]:
+        """List unverified entries for human review."""
+        ...
+
 
 class InMemoryKb:
     """Dict backed store. For tests and local runs."""
@@ -128,6 +132,12 @@ class InMemoryKb:
         ]
         scored.sort(key=lambda item: item.distance)
         return tuple(scored[:limit])
+
+    def list_candidates(self) -> tuple[KnownDifference, ...]:
+        """List unverified entries for human review."""
+        return tuple(
+            entry for entry in self._entries.values() if not entry.verified
+        )
 
 
 class Db2Kb:
@@ -196,11 +206,57 @@ class Db2Kb:
         conn = self._admin._connect()
         try:
             stmt = ibm_db.prepare(
+                conn, "SELECT verified FROM known_difference WHERE title = ?"
+            )
+            ibm_db.bind_param(stmt, 1, title)
+            ibm_db.execute(stmt)
+            row = ibm_db.fetch_tuple(stmt)
+            if row is None or row is False:
+                raise KeyError(f"unknown entry: {title}")
+            if int(row[0]) == 1:
+                raise ValueError("verified entries cannot be rejected")
+        finally:
+            ibm_db.close(conn)
+        conn = self._admin._connect()
+        try:
+            stmt = ibm_db.prepare(
                 conn,
                 "DELETE FROM known_difference WHERE title = ? AND verified = 0",
             )
             ibm_db.bind_param(stmt, 1, title)
             ibm_db.execute(stmt)
+        finally:
+            ibm_db.close(conn)
+
+    def list_candidates(self) -> tuple[KnownDifference, ...]:
+        """List unverified entries for human review."""
+        import ibm_db
+
+        conn = self._admin._connect()
+        try:
+            stmt = ibm_db.prepare(
+                conn,
+                "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
+                "evidence_run_id FROM known_difference WHERE verified = 0 ORDER BY title",
+            )
+            ibm_db.execute(stmt)
+            entries: list[KnownDifference] = []
+            while True:
+                row = ibm_db.fetch_tuple(stmt)
+                if row is None or row is False:
+                    break
+                entries.append(
+                    KnownDifference(
+                        title=row[0],
+                        source_pattern=row[1],
+                        db2_pattern=row[2],
+                        cause=row[3] or "",
+                        fix_template=row[4] or "",
+                        verified=False,
+                        evidence_run_id=int(row[5]) if row[5] is not None else None,
+                    )
+                )
+            return tuple(entries)
         finally:
             ibm_db.close(conn)
 

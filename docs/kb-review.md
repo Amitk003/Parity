@@ -1,0 +1,34 @@
+# Knowledge base review
+
+## What it does
+
+Agents add new knowledge as unverified candidates. Search never returns a candidate. A human approves or rejects each one. This is the review surface.
+
+## Usage
+
+```bash
+parity kb-review --action list
+parity kb-review --action approve --title "ILIKE upper like"
+parity kb-review --action reject --title "candidate only"
+parity kb-review --action list --store db2
+```
+
+- `--action list` shows unverified candidates with their source pattern.
+- `--action approve` marks one candidate verified. Verified entries cannot be rejected later.
+- `--action reject` removes one unverified candidate.
+- `--store memory` is the default. `--store db2` writes to the Db2 knowledge base tables. On Windows this needs the Linux bridge environment, because the Windows ibm_db driver fails with SQL1042C.
+
+Exit codes: 0 on success, 2 on any error such as an unknown title or a rejected attempt on a verified entry.
+
+## Rules
+
+- Unknown titles fail with a clear error.
+- Verified entries cannot be rejected.
+- Approve makes the entry searchable on the next search.
+- Reject removes the candidate with no trace, because it was never shared.
+
+## Where the code lives
+
+- `src/parity/kb/review.py` holds the action logic. It is store agnostic and returns text, so tests cover it without a CLI.
+- `src/parity/cli.py` wires the `kb-review` command and maps errors to exit code 2.
+- `list_candidates()` was added to the `KbStore` interface, `InMemoryKb`, and `Db2Kb`.
