@@ -21,7 +21,13 @@ def split_statements(text: str) -> list[str]:
 
 
 def load_sql_text(text: str, origin: str) -> list[WorkloadQuery]:
-    """Tag every statement in one SQL text block."""
+    """Tag every statement in one SQL text block.
+
+    Windows tools often write a byte order mark, which
+    breaks the first word check in the safety guard. A
+    leading mark is cut before tagging.
+    """
+    text = text.lstrip("\ufeff")
     return [tag_query(stmt, origin) for stmt in split_statements(text)]
 
 
@@ -29,7 +35,8 @@ def load_sql_file(path: Path) -> list[WorkloadQuery]:
     """Load and tag every statement in one .sql file."""
     if not path.is_file():
         raise ValueError(f"file not found: {path}")
-    return load_sql_text(path.read_text(encoding="utf-8"), origin=str(path))
+    text = path.read_text(encoding="utf-8-sig")
+    return load_sql_text(text, origin=str(path))
 
 
 def load_sql_dir(directory: Path) -> list[WorkloadQuery]:
