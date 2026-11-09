@@ -6,8 +6,8 @@ from parity.engine.executor import InMemoryExecutor
 from parity.engine.result import ComparisonResult, ComparisonStatus, DiffKind, ResultSet, RowDiff
 from parity.history.store import InMemoryRunStore, save_run
 from parity.history.types import ComparisonRecord, RunRecord, build_diff_summary
-from parity.report.risk import QueryReport
 from parity.pipeline import run_pipeline
+from parity.report.risk import QueryReport
 
 
 def mismatch_report() -> QueryReport:
