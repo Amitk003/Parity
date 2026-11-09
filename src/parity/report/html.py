@@ -11,6 +11,7 @@ import json
 from datetime import UTC, datetime
 
 from parity.engine.result import ComparisonStatus
+from parity.report.metrics import build_metrics
 from parity.report.risk import QueryReport
 
 _STYLE = """
@@ -94,7 +95,7 @@ def render_json_summary(
                 "diff_count": len(report.result.diffs),
             }
         )
-    payload: dict = {"queries": entries}
+    payload: dict = {"queries": entries, "metrics": build_metrics(reports, llm_usage)}
     if run_id is not None:
         payload["run_id"] = run_id
     if regression is not None:
