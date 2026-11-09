@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import html
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from parity.engine.result import ComparisonStatus
 from parity.report.risk import QueryReport
@@ -34,7 +34,7 @@ def _status_class(status: ComparisonStatus) -> str:
 
 def render_html(reports: list[QueryReport], title: str = "Parity report") -> str:
     """Render the full HTML report."""
-    generated = datetime.now(timezone.utc).isoformat()
+    generated = datetime.now(UTC).isoformat()
     passed = sum(1 for r in reports if r.result.status is ComparisonStatus.MATCH)
     failed = len(reports) - passed
     rows = []
