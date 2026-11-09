@@ -14,11 +14,15 @@ The fuzzer makes tricky test rows for each table. The same rows load into both d
 - `trailing_space`: text with trailing spaces.
 - `mixed_case`: upper, lower, and mixed case.
 - `unicode`: accented text, CJK text, emoji.
-- `long_string`: 40 characters. It fits most VARCHAR columns. Column width is not yet tracked, so very narrow columns may still truncate. That is a known limit.
+- `long_string`: 40 characters. Cut to the column width, so narrow columns stay safe.
 - `extreme_int`: zero, minus one, max and min int.
 - `rounding_number`: half values that rounding rules treat differently.
 - `dst_date`: daylight saving change dates and a leap date.
 - `timezone_date`: January and July timestamps in UTC.
+
+## Schema awareness
+
+Plans read the Postgres schema. NOT NULL columns never get the null category. Text values longer than the column width are cut to the width, so fuzz rows always fit. Skipped categories are recorded on the plan.
 
 Categories are picked by column type. Text columns get text edge cases. Number columns get extreme and rounding values. Date columns get DST and timezone dates.
 
