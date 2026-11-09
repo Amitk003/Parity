@@ -7,6 +7,7 @@ them. Only approved entries are shared.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -63,7 +64,7 @@ def _vector_literal(embedding: tuple[float, ...]) -> str:
     parts = []
     for value in embedding:
         number = float(value)
-        if number != number or number in (float("inf"), float("-inf")):
+        if math.isnan(number) or math.isinf(number):
             raise ValueError("embedding values must be finite")
         parts.append(f"{number:.6f}")
     return "VECTOR('[" + ",".join(parts) + "]', 384, FLOAT32)"
