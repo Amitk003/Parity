@@ -8,8 +8,8 @@ can see exactly what was rewritten and why.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from parity.translate.result import TranslationResult
 
@@ -50,7 +50,7 @@ class Rule:
 
 def _cast_repl(match: re.Match[str]) -> str:
     expr = match.group(1)
-    raw_type = match.group(2).strip().lower()
+    raw_type = " ".join(match.group(2).strip().lower().split())
     db2_type = _CAST_TYPES.get(raw_type, raw_type.upper())
     return f"CAST({expr} AS {db2_type})"
 
@@ -66,7 +66,11 @@ def _limit_repl(match: re.Match[str]) -> str:
 _RULES: tuple[Rule, ...] = (
     Rule(
         name="cast_double_colon",
-        pattern=re.compile(r"(\S+?)::\s*([a-zA-Z ]+)"),
+        pattern=re.compile(
+            r"(\S+?)::\s*(double\s+precision|smallint|integer|int|bigint|boolean|"
+            r"numeric|decimal|varchar|text|date|timestamp|real)\b",
+            re.IGNORECASE,
+        ),
         replace=_cast_repl,
     ),
     Rule(
