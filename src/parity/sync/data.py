@@ -11,7 +11,7 @@ import hashlib
 
 from parity.config import DatabaseSettings
 from parity.sync.db2_admin import Db2Admin
-from parity.sync.schema import TableDef, quote_ident
+from parity.sync.schema import TableDef
 
 _BATCH = 500
 
@@ -34,7 +34,7 @@ def read_postgres_rows(settings: DatabaseSettings, table: TableDef) -> list[tupl
         f"host={settings.host} port={settings.port} dbname={settings.database} "
         f"user={settings.user} password={settings.password}"
     )
-    columns = ", ".join(quote_ident(c.name) for c in table.columns)
+    columns = ", ".join(f'"{c.name}"' for c in table.columns)
     sql = f'SELECT {columns} FROM "{table.name}"'
     with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
         cursor.execute(sql)
