@@ -15,7 +15,6 @@ network.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from parity.agents.prompts import system_prompt
@@ -118,12 +117,3 @@ def run_pipeline(
             QueryReport.from_result(query.query_id, query.source_sql, db2_sql, result)
         )
     return reports
-
-
-def llm_settings_from_env() -> tuple[str, str, str]:
-    """Read model, base url, and api key from the environment."""
-    return (
-        os.environ.get("PARITY_LLM_MODEL", "recorded-model"),
-        os.environ.get("PARITY_LLM_BASE_URL", "http://localhost"),
-        os.environ.get("PARITY_LLM_API_KEY", ""),
-    )

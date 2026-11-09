@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from parity.config import load_settings
+from parity.config import load_llm_settings, load_settings
 from parity.engine.db2 import Db2Executor
 from parity.engine.db2_bridge import Db2BridgeExecutor
 from parity.engine.postgres import PostgresExecutor
@@ -34,7 +34,7 @@ from parity.history.regression import (
 from parity.history.store import RunStore, save_run
 from parity.kb.review import run_review
 from parity.kb.store import Db2Kb, InMemoryKb
-from parity.pipeline import llm_settings_from_env, run_pipeline
+from parity.pipeline import run_pipeline
 from parity.report.html import render_html, render_json_summary
 from parity.runner import run_comparison
 
@@ -126,9 +126,15 @@ def _build_gateway(args) -> Gateway | None:
     from parity.gateway.json_cache import JsonGatewayCache
     from parity.gateway.types import ProviderConfig
 
-    model, base_url, api_key = llm_settings_from_env()
-    if args.replay and not api_key:
-        base_url = "http://localhost"
+    settings = load_llm_settings()
+    if args.replay:
+        base_url = settings.base_url
+        api_key = settings.api_key
+    else:
+        settings.require_live()
+        base_url = settings.base_url
+        api_key = settings.api_key
+    model = settings.model
     cache = (
         JsonGatewayCache(Path(args.llm_cache)) if args.llm_cache else InMemoryCache()
     )
