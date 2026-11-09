@@ -9,6 +9,7 @@ parity run --dir samples --out parity-report.html --json-out summary.json --brid
 - `--dir` is a folder with `.sql` files.
 - `--out` is the HTML report path.
 - `--json-out` is an optional machine readable summary.
+- `--history` is an optional run history file. It stores every run with a run id, and the run id appears in the report title and the JSON summary.
 - `--bridge` uses the Linux bridge for Db2. Use it on Windows.
 
 Schema and data sync must happen before the run. The pipeline assumes both databases hold the same data.
