@@ -15,12 +15,14 @@ network.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from parity.agents.prompts import system_prompt
 from parity.agents.types import AgentRole
 from parity.engine.executor import DatabaseExecutor
 from parity.engine.result import ComparisonResult, ComparisonStatus
+from parity.engine.safety import validate_row_limit
 from parity.gateway.client import Gateway
 from parity.gateway.types import BudgetExceededError, CacheMissError
 from parity.ingest.loader import deduplicate, load_sql_dir
@@ -58,62 +60,62 @@ def _agent_translate(
     return sql, ""
 
 
+def _process_query(query, source, target, gateway) -> QueryReport:
+    """Run one query through translate and compare."""
+    if not query.read_only:
+        result = ComparisonResult(
+            status=ComparisonStatus.NOT_COMPARABLE,
+            note="write query: not executed",
+        )
+        return QueryReport.from_result(query.query_id, query.source_sql, "", result)
+    translation = translate(query.source_sql)
+    if translation.untranslatable:
+        if gateway is None:
+            result = ComparisonResult(
+                status=ComparisonStatus.NOT_COMPARABLE,
+                note="untranslatable by rules "
+                f"({', '.join(translation.untranslatable)}); "
+                "no agent gateway configured",
+            )
+            return QueryReport.from_result(query.query_id, query.source_sql, "", result)
+        agent_sql, failure = _agent_translate(
+            query.query_id, query.source_sql, gateway
+        )
+        if failure or not agent_sql:
+            note = failure or "agent returned empty SQL"
+            result = ComparisonResult(
+                status=ComparisonStatus.NOT_COMPARABLE,
+                note=f"agent translation failed: {note}",
+            )
+            return QueryReport.from_result(query.query_id, query.source_sql, "", result)
+        db2_sql = quote_table(agent_sql, query.tables[0] if query.tables else None)
+    else:
+        db2_sql = quote_table(
+            translation.db2_sql, query.tables[0] if query.tables else None
+        )
+    result = run_comparison(source, target, query.source_sql, db2_sql)
+    return QueryReport.from_result(query.query_id, query.source_sql, db2_sql, result)
+
+
 def run_pipeline(
     workload_dir: Path,
     source: DatabaseExecutor,
     target: DatabaseExecutor,
     gateway: Gateway | None = None,
+    concurrency: int = 1,
 ) -> list[QueryReport]:
     """Run the full pipeline. Return report entries."""
+    validate_row_limit(concurrency)
     queries = deduplicate(load_sql_dir(workload_dir))
-    reports: list[QueryReport] = []
-    for query in queries:
-        if not query.read_only:
-            result = ComparisonResult(
-                status=ComparisonStatus.NOT_COMPARABLE,
-                note="write query: not executed",
-            )
-            reports.append(
-                QueryReport.from_result(query.query_id, query.source_sql, "", result)
-            )
-            continue
-        translation = translate(query.source_sql)
-        if translation.untranslatable:
-            if gateway is None:
-                result = ComparisonResult(
-                    status=ComparisonStatus.NOT_COMPARABLE,
-                    note="untranslatable by rules "
-                    f"({', '.join(translation.untranslatable)}); "
-                    "no agent gateway configured",
-                )
-                reports.append(
-                    QueryReport.from_result(
-                        query.query_id, query.source_sql, "", result
-                    )
-                )
-                continue
-            agent_sql, failure = _agent_translate(
-                query.query_id, query.source_sql, gateway
-            )
-            if failure or not agent_sql:
-                note = failure or "agent returned empty SQL"
-                result = ComparisonResult(
-                    status=ComparisonStatus.NOT_COMPARABLE,
-                    note=f"agent translation failed: {note}",
-                )
-                reports.append(
-                    QueryReport.from_result(
-                        query.query_id, query.source_sql, "", result
-                    )
-                )
-                continue
-            db2_sql = quote_table(agent_sql, query.tables[0] if query.tables else None)
-        else:
-            db2_sql = quote_table(
-                translation.db2_sql, query.tables[0] if query.tables else None
-            )
-        result = run_comparison(source, target, query.source_sql, db2_sql)
-        reports.append(
-            QueryReport.from_result(query.query_id, query.source_sql, db2_sql, result)
-        )
-    return reports
+    if concurrency == 1:
+        return [_process_query(query, source, target, gateway) for query in queries]
+    indexed: list[tuple[int, QueryReport]] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {
+            pool.submit(_process_query, query, source, target, gateway): index
+            for index, query in enumerate(queries)
+        }
+        for future in as_completed(futures):
+            indexed.append((futures[future], future.result()))
+    indexed.sort(key=lambda pair: pair[0])
+    return [report for _, report in indexed]
