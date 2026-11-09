@@ -1,3 +1,14 @@
 SELECT COUNT(*) FROM demo_users;
 SELECT 1;
 SELECT id, name FROM demo_users WHERE name LIKE '%a%';
+SELECT 'a ' = 'a';
+SELECT LENGTH('café');
+SELECT ROUND(2.5);
+SELECT name FROM demo_users ORDER BY name;
+SELECT id FROM demo_users ORDER BY name;
+SELECT COUNT(*) FROM demo_users WHERE name IS NULL;
+SELECT CASE WHEN '' IS NULL THEN 'null' ELSE 'notnull' END;
+SELECT 1/2;
+SELECT 0.1 + 0.2;
+SELECT 'HELLO' LIKE 'hello';
+SELECT UPPER(name) FROM demo_users WHERE id = 1;
