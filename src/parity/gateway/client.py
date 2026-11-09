@@ -9,10 +9,9 @@ touches the network.
 from __future__ import annotations
 
 import json
-import time
 import urllib.error
 import urllib.request
-from typing import Callable
+from collections.abc import Callable
 
 from parity.gateway.cache import CacheStore
 from parity.gateway.types import (
@@ -45,10 +44,8 @@ def _http_transport(provider: ProviderConfig, system: str, user: str) -> Gateway
     request.add_header("Content-Type", "application/json")
     if provider.api_key:
         request.add_header("Authorization", f"Bearer {provider.api_key}")
-    start = time.monotonic()
     with urllib.request.urlopen(request, timeout=60) as response:
         payload = json.loads(response.read().decode("utf-8"))
-    latency_ms = int((time.monotonic() - start) * 1000)
     text = payload["choices"][0]["message"]["content"]
     usage = payload.get("usage", {})
     return GatewayResponse(
