@@ -63,6 +63,18 @@ def _limit_repl(match: re.Match[str]) -> str:
     return f"FETCH FIRST {limit} ROWS ONLY"
 
 
+_ALIAS_AGG = re.compile(
+    r"\b(COUNT|SUM|MIN|MAX|AVG)\s*\(\s*([^()]*?)\s*\)(?=\s*(?:,|\)|FROM\b|\Z))",
+    re.IGNORECASE,
+)
+
+
+def _agg_repl(match: re.Match[str]) -> str:
+    func = match.group(1)
+    args = match.group(2) or "*"
+    return f"{func}({args}) AS {func}"
+
+
 _RULES: tuple[Rule, ...] = (
     Rule(
         name="cast_double_colon",
@@ -104,6 +116,11 @@ _RULES: tuple[Rule, ...] = (
             if m.group(3)
             else f"SUBSTRING({m.group(1)}, {m.group(2)})"
         ),
+    ),
+    Rule(
+        name="aggregate_alias",
+        pattern=_ALIAS_AGG,
+        replace=_agg_repl,
     ),
 )
 
