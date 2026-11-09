@@ -31,6 +31,12 @@ The loader lives in `src/parity/config.py`. It never invents a password. Missing
 - Returns a `ResultSet`.
 - Db2 timeout is handled by the caller in a later branch. The interface keeps the timeout parameter so both executors match.
 
+### Known issue on Windows
+
+On Windows, the `ibm_db` pip driver can fail with `SQL1042C` even when the Db2 server is healthy and the port is open. This was seen on 2026-11-09: the server answered queries inside the container, the port test passed, but the Windows driver could not connect in any connection string form.
+
+This is a client driver limit, not a Parity code bug. The fix in the next branch is a Linux container bridge: Parity already runs databases in containers, so the Db2 driver will run in a Linux container too. Until then, use Linux or WSL for live Db2 tests. PostgreSQL live tests work on Windows.
+
 ## Docker
 
 `docker-compose.yml` starts both databases.
