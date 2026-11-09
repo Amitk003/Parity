@@ -96,6 +96,17 @@ class UsageReport:
             return 0.0
         return self.cache_hits / self.calls
 
+    def as_dict(self) -> dict:
+        """JSON safe form for the run summary."""
+        return {
+            "calls": self.calls,
+            "cache_hits": self.cache_hits,
+            "cache_hit_rate": round(self.cache_hit_rate, 4),
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "by_provider": dict(self.by_provider),
+        }
+
 
 def cache_key(agent: str, prompt: str, model: str, settings: str = "") -> str:
     """Return a stable cache key for one call."""

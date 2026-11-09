@@ -79,6 +79,7 @@ def render_json_summary(
     reports: list[QueryReport],
     run_id: int | None = None,
     regression: dict | None = None,
+    llm_usage: dict | None = None,
 ) -> str:
     """Render a machine readable JSON summary."""
     entries = []
@@ -98,4 +99,6 @@ def render_json_summary(
         payload["run_id"] = run_id
     if regression is not None:
         payload["regression"] = regression
+    if llm_usage is not None:
+        payload["llm_usage"] = llm_usage
     return json.dumps(payload, indent=2)
