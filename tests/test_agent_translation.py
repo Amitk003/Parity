@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from parity.cli import build_parser
+from parity.config import load_llm_settings
 from parity.engine.executor import InMemoryExecutor
 from parity.engine.result import ComparisonStatus
 from parity.gateway.cache import InMemoryCache
@@ -15,7 +16,7 @@ from parity.gateway.types import (
     TokenBudget,
     cache_key,
 )
-from parity.pipeline import llm_settings_from_env, run_pipeline
+from parity.pipeline import run_pipeline
 from parity.report.html import render_json_summary
 
 _SRC = "SELECT name FROM demo WHERE name ~ 'a'"
@@ -136,10 +137,16 @@ def test_live_path_stores_in_cache(tmp_path: Path):
     assert gateway.report.cache_hits == 0
 
 
-def test_llm_settings_defaults(monkeypatch):
+def test_load_llm_settings_defaults(monkeypatch):
     for name in ("PARITY_LLM_MODEL", "PARITY_LLM_BASE_URL", "PARITY_LLM_API_KEY"):
         monkeypatch.delenv(name, raising=False)
-    assert llm_settings_from_env() == ("recorded-model", "http://localhost", "")
+    settings = load_llm_settings()
+    assert (settings.model, settings.base_url, settings.api_key) == (
+        "recorded-model",
+        "http://localhost",
+        "",
+    )
+    assert settings.is_replay_only is True
 
 
 def test_cli_replay_flags():

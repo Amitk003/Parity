@@ -63,3 +63,44 @@ def load_settings() -> tuple[DatabaseSettings, DatabaseSettings]:
         database=os.environ.get("PARITY_DB2_DB", ""),
     )
     return source, db2
+
+
+@dataclass(frozen=True)
+class LlmSettings:
+    """Settings for one model provider."""
+
+    model: str = "recorded-model"
+    base_url: str = "http://localhost"
+    api_key: str = ""
+
+    def validate(self) -> None:
+        """Raise ValueError when the settings are not usable."""
+        if not self.model.strip():
+            raise ValueError("PARITY_LLM_MODEL must not be empty")
+        if not self.base_url.startswith(("http://", "https://")):
+            raise ValueError("PARITY_LLM_BASE_URL must start with http:// or https://")
+
+    @property
+    def is_replay_only(self) -> bool:
+        """True when no key is set, so only cached calls can run."""
+        return not self.api_key
+
+    def require_live(self) -> None:
+        """Raise ValueError when a live call has no API key."""
+        self.validate()
+        if self.is_replay_only:
+            raise ValueError(
+                "LLM API key is required for live calls. "
+                "Set PARITY_LLM_API_KEY or use replay mode."
+            )
+
+
+def load_llm_settings() -> LlmSettings:
+    """Load LLM settings from the environment."""
+    settings = LlmSettings(
+        model=os.environ.get("PARITY_LLM_MODEL", "recorded-model"),
+        base_url=os.environ.get("PARITY_LLM_BASE_URL", "http://localhost"),
+        api_key=os.environ.get("PARITY_LLM_API_KEY", ""),
+    )
+    settings.validate()
+    return settings
