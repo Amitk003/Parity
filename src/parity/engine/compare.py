@@ -60,9 +60,7 @@ def _values_equal(left: Any, right: Any, tolerance: float) -> tuple[bool, DiffKi
     if left is None or right is None:
         return False, DiffKind.NULL_VS_VALUE
     if type(left) is not type(right):
-        if isinstance(left, Decimal) and isinstance(right, float):
-            pass
-        elif isinstance(left, float) and isinstance(right, Decimal):
+        if isinstance(left, Decimal) and isinstance(right, float) or isinstance(left, float) and isinstance(right, Decimal):
             pass
         else:
             return False, DiffKind.TYPE
@@ -88,9 +86,7 @@ def _row_key(row: tuple[Any, ...]) -> tuple[Any, ...]:
     for value in row:
         if value is None:
             key.append((0, ""))
-        elif isinstance(value, Decimal):
-            key.append((1, str(value)))
-        elif isinstance(value, bool):
+        elif isinstance(value, (Decimal, bool)):
             key.append((1, str(value)))
         else:
             key.append((1, str(value)))

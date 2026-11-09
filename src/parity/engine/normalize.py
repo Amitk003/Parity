@@ -7,7 +7,7 @@ spaces, NULL, and empty text stay distinct.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -39,8 +39,8 @@ def normalize_value(value: Any) -> Any:
     if isinstance(value, datetime):
         aware = value
         if aware.tzinfo is None:
-            aware = aware.replace(tzinfo=timezone.utc)
-        return aware.astimezone(timezone.utc).isoformat()
+            aware = aware.replace(tzinfo=UTC)
+        return aware.astimezone(UTC).isoformat()
     if isinstance(value, (date, time)):
         return value.isoformat()
     if isinstance(value, (bytes, bytearray)):
