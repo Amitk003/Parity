@@ -11,6 +11,7 @@ parity run --dir samples --out parity-report.html --json-out summary.json --brid
 - `--json-out` is an optional machine readable summary.
 - `--history` is an optional run history file. It stores every run with a run id, and the run id appears in the report title and the JSON summary.
 - `--bridge` uses the Linux bridge for Db2. Use it on Windows.
+- `--concurrency` runs queries in parallel, bounded by the number given. The default is 1, which keeps runs sequential and simple to debug. Report order always matches the workload order.
 
 Schema and data sync must happen before the run. The pipeline assumes both databases hold the same data.
 
