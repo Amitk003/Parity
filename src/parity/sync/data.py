@@ -36,10 +36,9 @@ def read_postgres_rows(settings: DatabaseSettings, table: TableDef) -> list[tupl
     )
     columns = ", ".join(quote_ident(c.name) for c in table.columns)
     sql = f'SELECT {columns} FROM "{table.name}"'
-    with psycopg.connect(conninfo, autocommit=True) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(sql)
-            return [tuple(r) for r in cursor.fetchall()]
+    with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
+        cursor.execute(sql)
+        return [tuple(r) for r in cursor.fetchall()]
 
 
 def copy_table(

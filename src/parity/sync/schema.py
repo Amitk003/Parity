@@ -76,21 +76,20 @@ def introspect_postgres(settings: DatabaseSettings) -> tuple[TableDef, ...]:
         f"user={settings.user} password={settings.password}"
     )
     tables: list[TableDef] = []
-    with psycopg.connect(conninfo, autocommit=True) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(_TABLES_SQL)
-            names = [row[0] for row in cursor.fetchall()]
-            for name in names:
-                cursor.execute(_COLUMNS_SQL, (name,))
-                columns = tuple(
-                    ColumnDef(
-                        name=row[0],
-                        db2_type=map_type(row[1]),
-                        nullable=row[2] == "YES",
-                    )
-                    for row in cursor.fetchall()
+    with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
+        cursor.execute(_TABLES_SQL)
+        names = [row[0] for row in cursor.fetchall()]
+        for name in names:
+            cursor.execute(_COLUMNS_SQL, (name,))
+            columns = tuple(
+                ColumnDef(
+                    name=row[0],
+                    db2_type=map_type(row[1]),
+                    nullable=row[2] == "YES",
                 )
-                if not columns:
-                    raise ValueError(f"table has no columns: {name}")
-                tables.append(TableDef(name=name, columns=columns))
+                for row in cursor.fetchall()
+            )
+            if not columns:
+                raise ValueError(f"table has no columns: {name}")
+            tables.append(TableDef(name=name, columns=columns))
     return tuple(tables)

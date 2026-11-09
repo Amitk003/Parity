@@ -42,7 +42,7 @@ def map_type(postgres_type: str) -> str:
         return _TYPE_MAP[key]
     if key.startswith("character varying"):
         return "VARCHAR(255)"
-    if key.startswith("numeric") or key.startswith("decimal"):
+    if key.startswith(("numeric", "decimal")):
         return "DECIMAL(18, 6)"
     raise ValueError(f"no Db2 mapping for type: {postgres_type}")
 
