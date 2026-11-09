@@ -34,3 +34,4 @@ coverage/
 htmlcov/
 parity-report*.html
 parity-report*.json
+parity-summary*.json
