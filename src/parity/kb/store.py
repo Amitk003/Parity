@@ -50,7 +50,15 @@ class KnownDifference:
             return True
         wanted = category.lower()
         haystack = f"{self.category} {self.source_pattern} {self.title}".lower()
-        return wanted in haystack
+        if wanted in haystack:
+            return True
+        func = function_of(self)
+        families = {
+            "aggregate": {"COUNT", "SUM", "MIN", "MAX", "AVG"},
+            "string": {"ILIKE", "LIKE", "UPPER", "TRIM", "SUBSTRING"},
+            "limit": {"LIMIT", "OFFSET"},
+        }
+        return func in families.get(wanted, set())
 
 
 def function_of(entry: KnownDifference) -> str:
