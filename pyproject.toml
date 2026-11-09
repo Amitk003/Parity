@@ -21,6 +21,9 @@ db = [
     "ibm_db>=3.2",
     "psycopg[binary]>=3.2",
 ]
+agents = [
+    "crewai>=0.100",
+]
 
 [project.scripts]
 parity = "parity.cli:main"
