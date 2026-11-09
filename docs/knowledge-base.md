@@ -28,6 +28,10 @@ Verified entries cannot be rejected. Unknown titles raise a clear error.
 
 Hashing embeddings are weak for SQL meaning. Search also accepts a `category` filter. An entry matches when the category word appears in its category field, its source pattern, or its title. The Db2 store fetches three times the limit and then filters, so filtered results still come back full. Use a category such as `aggregate`, `string`, or `limit` when you know the family of the difference.
 
+## Reuse metric
+
+Every store counts searches and hits with `stats()`. The hit rate is the share of searches that found a verified entry. That rate is the reuse metric: fixes found through search instead of from scratch.
+
 ## Honest limit
 
 Hashing embeddings are weaker than neural embeddings for SQL meaning. The category filter helps, and the verified only rule is the main defense against bad entries.
