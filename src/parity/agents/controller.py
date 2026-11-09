@@ -9,7 +9,8 @@ trusts an agent verdict.
 
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 from parity.agents.prompts import system_prompt
 from parity.agents.types import AgentOutput, AgentRole, FixAttempt, LoopResult
