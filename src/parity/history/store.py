@@ -14,6 +14,7 @@ this project means a Linux bridge environment.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Protocol
 
 from parity.history.types import ComparisonRecord, RunRecord
@@ -87,7 +88,9 @@ class InMemoryRunStore:
 
     def finish_run(self, run_id: int, exit_code: int) -> None:
         """Mark one run finished with its exit code."""
-        self._require(run_id).exit_code = exit_code
+        run = self._require(run_id)
+        run.exit_code = exit_code
+        run.finished_at = datetime.now(UTC).isoformat()
 
     def get_run(self, run_id: int) -> RunRecord:
         """Load one run with its records."""

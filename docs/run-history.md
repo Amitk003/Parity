@@ -19,6 +19,7 @@ Every pipeline run gets a durable record. The history is the base for audit and 
 
 - `RunStore` is the interface: `start_run`, `save_records`, `finish_run`, `get_run`.
 - `InMemoryRunStore` is for tests and local runs.
+- `JsonRunStore` keeps the history in one JSON file. This works on any machine, including one without a working ibm_db driver. It also sets the start and finish times.
 - `Db2RunStore` keeps history in Db2 as system of record. It uses two tables:
 
 ```sql
@@ -27,6 +28,14 @@ comparison_result (run_id, query_id, status, risk_score, risk_label, note, sourc
 ```
 
 `save_run(store, source_dir, reports, exit_code)` is the one call a pipeline caller needs. It opens the run, saves all records, and closes the run with the exit code.
+
+## History from the run command
+
+```bash
+parity run --dir samples --out parity-report.html --history parity-history.json
+```
+
+The run command saves the run into the history file and prints the run id. The HTML report title and the JSON summary also carry the run id. The history file accumulates every run of that workload, so run ids increment over time.
 
 ## Where the Db2 store runs
 

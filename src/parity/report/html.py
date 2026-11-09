@@ -75,7 +75,7 @@ def render_html(reports: list[QueryReport], title: str = "Parity report") -> str
     )
 
 
-def render_json_summary(reports: list[QueryReport]) -> str:
+def render_json_summary(reports: list[QueryReport], run_id: int | None = None) -> str:
     """Render a machine readable JSON summary."""
     entries = []
     for report in reports:
@@ -89,4 +89,7 @@ def render_json_summary(reports: list[QueryReport]) -> str:
                 "diff_count": len(report.result.diffs),
             }
         )
-    return json.dumps({"queries": entries}, indent=2)
+    payload: dict = {"queries": entries}
+    if run_id is not None:
+        payload["run_id"] = run_id
+    return json.dumps(payload, indent=2)
