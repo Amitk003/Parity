@@ -40,6 +40,23 @@ class Db2Admin:
         for table in tables:
             self.execute_ddl(build_create_table(table))
 
+    def table_exists(self, name: str) -> bool:
+        """True when a table with this name exists."""
+        import ibm_db
+
+        conn = self._connect()
+        try:
+            stmt = ibm_db.prepare(
+                conn,
+                "SELECT COUNT(*) FROM SYSCAT.TABLES WHERE TABNAME = ?",
+            )
+            ibm_db.bind_param(stmt, 1, name.upper())
+            ibm_db.execute(stmt)
+            row = ibm_db.fetch_tuple(stmt)
+            return bool(row) and int(row[0]) > 0
+        finally:
+            ibm_db.close(conn)
+
     def drop_tables(self, tables: tuple[TableDef, ...]) -> None:
         """Drop each table if it exists. Used for clean reruns."""
         import ibm_db
