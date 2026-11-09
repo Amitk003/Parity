@@ -8,7 +8,7 @@ comes from the databases, not from the data.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -45,8 +45,8 @@ def values_for_category(category: str) -> tuple[Any, ...]:
             date(2024, 2, 29),
         ),
         "timezone_date": (
-            datetime(2024, 1, 15, 12, 0, tzinfo=timezone.utc),
-            datetime(2024, 7, 15, 12, 0, tzinfo=timezone.utc),
+            datetime(2024, 1, 15, 12, 0, tzinfo=UTC),
+            datetime(2024, 7, 15, 12, 0, tzinfo=UTC),
         ),
     }
     if category not in builders:
