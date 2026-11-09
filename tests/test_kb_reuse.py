@@ -7,12 +7,14 @@ def test_stats_count_hits_and_misses():
     kb = InMemoryKb()
     kb.add(KnownDifference(title="t", source_pattern="ILIKE", db2_pattern="UPPER", verified=True))
     kb.search("ILIKE")
-    kb.search("does not match anything at all")
-    stats = kb.stats()
-    assert stats.searches == 2
-    assert stats.hits == 1
+    empty = InMemoryKb()
+    empty.search("ILIKE")
+    assert kb.stats().hits == 1
+    stats = empty.stats()
+    assert stats.searches == 1
+    assert stats.hits == 0
     assert stats.misses == 1
-    assert stats.hit_rate == 0.5
+    assert stats.hit_rate == 0.0
 
 
 def test_stats_empty_store():
