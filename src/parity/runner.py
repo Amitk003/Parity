@@ -43,10 +43,10 @@ def run_comparison(
         )
     try:
         source_result = source.execute(source_sql, timeout_seconds)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any executor failure becomes ERROR status
         return _error_result(f"source executor failed: {exc}")
     try:
         target_result = target.execute(target_sql, timeout_seconds)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any executor failure becomes ERROR status
         return _error_result(f"target executor failed: {exc}")
     return compare_result_sets(source_result, target_result, config=config, sql=source_sql)
