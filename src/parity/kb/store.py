@@ -37,11 +37,28 @@ class KnownDifference:
     fix_template: str = ""
     verified: bool = False
     evidence_run_id: int | None = None
+    category: str = ""
     embedding: tuple[float, ...] = ()
 
     def search_text(self) -> str:
         """Text used for embedding and search."""
         return f"{self.title} {self.source_pattern} {self.cause}"
+
+    def matches_category(self, category: str) -> bool:
+        """True when the entry belongs to the requested category."""
+        if not category:
+            return True
+        wanted = category.lower()
+        haystack = f"{self.category} {self.source_pattern} {self.title}".lower()
+        return wanted in haystack
+
+
+def function_of(entry: KnownDifference) -> str:
+    """Return the leading function name of the source pattern."""
+    import re
+
+    match = re.match(r"([A-Za-z_][A-Za-z0-9_]*)", entry.source_pattern.strip())
+    return match.group(1).upper() if match else ""
 
 
 @dataclass(frozen=True)
@@ -85,7 +102,9 @@ class KbStore(Protocol):
         """Remove one unverified entry."""
         ...
 
-    def search(self, query: str, limit: int = 5) -> tuple[ScoredDifference, ...]:
+    def search(
+        self, query: str, limit: int = 5, category: str = ""
+    ) -> tuple[ScoredDifference, ...]:
         """Search verified entries. Return closest first."""
         ...
 
@@ -122,13 +141,15 @@ class InMemoryKb:
             raise ValueError("verified entries cannot be rejected")
         del self._entries[title]
 
-    def search(self, query: str, limit: int = 5) -> tuple[ScoredDifference, ...]:
+    def search(
+        self, query: str, limit: int = 5, category: str = ""
+    ) -> tuple[ScoredDifference, ...]:
         """Search verified entries. Return closest first."""
         query_vector = self._embedder.embed(query)
         scored = [
             ScoredDifference(entry, cosine_distance(query_vector, entry.embedding))
             for entry in self._entries.values()
-            if entry.verified
+            if entry.verified and entry.matches_category(category)
         ]
         scored.sort(key=lambda item: item.distance)
         return tuple(scored[:limit])
@@ -260,12 +281,15 @@ class Db2Kb:
         finally:
             ibm_db.close(conn)
 
-    def search(self, query: str, limit: int = 5) -> tuple[ScoredDifference, ...]:
+    def search(
+        self, query: str, limit: int = 5, category: str = ""
+    ) -> tuple[ScoredDifference, ...]:
         """Search verified entries with VECTOR_DISTANCE."""
         import ibm_db
 
         query_vector = self._embedder.embed(query)
         literal = _vector_literal(query_vector)
+        fetch_limit = limit * 3 if category else limit
         conn = self._admin._connect()
         try:
             stmt = ibm_db.prepare(
@@ -274,7 +298,7 @@ class Db2Kb:
                 f"VECTOR_DISTANCE(embedding, {literal}, COSINE) AS dist "
                 "FROM known_difference WHERE verified = 1 ORDER BY dist FETCH FIRST ? ROWS ONLY",
             )
-            ibm_db.bind_param(stmt, 1, limit)
+            ibm_db.bind_param(stmt, 1, fetch_limit)
             ibm_db.execute(stmt)
             results: list[ScoredDifference] = []
             while True:
@@ -289,7 +313,8 @@ class Db2Kb:
                     fix_template=row[4] or "",
                     verified=True,
                 )
-                results.append(ScoredDifference(entry, float(row[5])))
-            return tuple(results)
+                if entry.matches_category(category):
+                    results.append(ScoredDifference(entry, float(row[5])))
+            return tuple(results[:limit])
         finally:
             ibm_db.close(conn)
