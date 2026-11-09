@@ -73,6 +73,7 @@ class Db2BridgeExecutor:
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
+            check=False,
         )
         if completed.returncode != 0:
             raise RuntimeError(f"bridge failed: {completed.stderr.strip()[:300]}")

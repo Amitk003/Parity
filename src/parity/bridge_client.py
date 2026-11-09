@@ -24,9 +24,9 @@ def encode_value(value: Any) -> Any:
 
 def run_and_encode(sql: str, settings) -> dict[str, Any]:
     """Run SQL on Db2. Return a JSON safe dict."""
-    from parity.engine.db2 import _connection_string
-
     import ibm_db
+
+    from parity.engine.db2 import _connection_string
 
     conn = ibm_db.connect(_connection_string(settings), "", "")
     try:
@@ -57,7 +57,7 @@ def main() -> int:
     _, db2_settings = load_settings()
     try:
         result = run_and_encode(sql, db2_settings)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - any Db2 failure becomes error JSON
         print(json.dumps({"error": str(exc)[:500]}))
         return 2
     print(json.dumps(result))
