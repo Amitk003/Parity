@@ -21,7 +21,11 @@ _FUNCTION = re.compile(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*\(")
 _COLUMN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$")
 _IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _CAST = re.compile(
-    r"^CAST\s*\(\s*.+?\s+AS\s+([a-zA-Z ]+?)\s*\)$",
+    r"^CAST\s*\(\s*.+?\s+AS\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*(?:\([^)]*\))?\s*\)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_CAST_DOUBLE = re.compile(
+    r"^[a-zA-Z_][a-zA-Z0-9_]*\s*::\s*([a-zA-Z]+(?:\s+[a-zA-Z]+)*)\s*(?:\([^)]*\))?$",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -191,12 +195,41 @@ def select_items(sql: str) -> tuple[SelectItem, ...]:
     return tuple(items)
 
 
+def _has_top_level_as(text: str) -> bool:
+    """True when the item has an AS keyword outside any brackets.
+
+    The AS inside a cast does not name the item. It names
+    the type of the cast.
+    """
+    depth = 0
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "'":
+            index = _skip_string(text, index)
+            continue
+        if char == '"':
+            index = _skip_quoted(text, index)
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        elif depth == 0 and text[index : index + 2].upper() == "AS":
+            before_ok = index == 0 or not text[index - 1].isalnum()
+            after_ok = index + 2 >= len(text) or not text[index + 2].isalnum()
+            if before_ok and after_ok:
+                return True
+        index += 1
+    return False
+
+
 def _has_alias(text: str) -> bool:
     """True when the item already carries a name."""
     stripped = text.strip()
     if not stripped:
         return False
-    if re.search(r"\s+AS\s+", stripped, re.IGNORECASE):
+    if _has_top_level_as(stripped):
         return True
     parts = stripped.split()
     return len(parts) == 2 and bool(_IDENTIFIER.match(parts[1])) and not _IDENTIFIER.match(parts[0])
@@ -221,6 +254,9 @@ def postgres_label(text: str) -> str | None:
     cast = _CAST.match(stripped)
     if cast:
         return _CAST_LABELS.get(cast.group(1).strip().lower(), "?column?")
+    double_cast = _CAST_DOUBLE.match(stripped)
+    if double_cast:
+        return _CAST_LABELS.get(double_cast.group(1).strip().lower(), "?column?")
     function = _FUNCTION.match(stripped)
     if function:
         return function.group(1).lower()
