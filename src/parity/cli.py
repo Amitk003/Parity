@@ -241,9 +241,9 @@ def _run_ingest(args) -> int:
 def _run_kb_review(args) -> int:
     _, db2_settings = load_settings()
     if args.store == "db2":
-        from parity.sync.db2_admin import Db2Admin
+        from parity.sync.bridge_admin import Db2BridgeAdmin
 
-        store = Db2Kb(Db2Admin(db2_settings))
+        store = Db2Kb(Db2BridgeAdmin(db2_settings))
     else:
         store = InMemoryKb()
     try:
