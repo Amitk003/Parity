@@ -63,8 +63,21 @@ def test_insert_rows_builds_one_statement(monkeypatch):
     )
     executor.insert_rows("t", ("id", "name"), [(1, "a"), (2, "b")])
     request = json.loads(captured[0])
-    assert request["sql"] == 'INSERT INTO "T" ("ID", "NAME") VALUES (?, ?)'
+    assert request["sql"] == 'INSERT INTO "T" ("ID", "NAME") VALUES (?, ?), (?, ?)'
     assert request["params"] == [1, "a", 2, "b"]
+
+
+def test_insert_rows_marker_count_matches_the_parameters(monkeypatch):
+    """One set of markers per row keeps the parameter count right."""
+    executor = Db2BridgeAdmin(settings())
+    captured: list[str] = []
+    monkeypatch.setattr(
+        "subprocess.run",
+        fake_run(json.dumps({"columns": [], "types": [], "rows": []}), captured=captured),
+    )
+    executor.insert_rows("t", ("id", "name"), [(1, "a"), (2, "b"), (3, "c")])
+    request = json.loads(captured[0])
+    assert request["sql"].count("?") == len(request["params"])
 
 
 def test_insert_rows_with_no_rows_does_nothing(monkeypatch):

@@ -92,11 +92,16 @@ class Db2BridgeAdmin:
     def insert_rows(
         self, table: str, columns: tuple[str, ...], rows: list[tuple]
     ) -> None:
-        """Insert rows with bound parameters."""
+        """Insert rows with bound parameters.
+
+        Every row gets its own set of markers, so the
+        parameter count always matches the statement.
+        """
         if not rows:
             return
         col_sql = ", ".join(f'"{c.upper()}"' for c in columns)
-        marks = ", ".join("?" for _ in columns)
-        sql = f'INSERT INTO "{table.upper()}" ({col_sql}) VALUES ({marks})'
+        one_row = ", ".join("?" for _ in columns)
+        values = ", ".join(f"({one_row})" for _ in rows)
+        sql = f'INSERT INTO "{table.upper()}" ({col_sql}) VALUES {values}'
         params = [value for row in rows for value in row]
         self.execute(sql, params)
