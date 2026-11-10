@@ -16,6 +16,7 @@ import os
 import subprocess
 
 from parity.config import DatabaseSettings
+from parity.engine.db2_types import convert_row
 from parity.engine.result import ResultSet
 from parity.engine.safety import assert_read_only
 
@@ -83,7 +84,11 @@ class Db2BridgeExecutor:
             raise RuntimeError(f"bridge returned bad JSON: {exc}") from exc
         if "error" in payload:
             raise RuntimeError(f"bridge error: {payload['error']}")
-        rows = [tuple(row) for row in payload["rows"]]
+        types = payload.get("types") or []
+        rows = [
+            convert_row(tuple(row), list(types)) if types else tuple(row)
+            for row in payload["rows"]
+        ]
         if len(rows) > self._row_limit:
             raise ValueError(f"result exceeds row limit of {self._row_limit}")
         return ResultSet(columns=tuple(payload["columns"]), rows=tuple(rows))

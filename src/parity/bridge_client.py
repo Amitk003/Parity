@@ -31,9 +31,14 @@ def run_and_encode(sql: str, settings) -> dict[str, Any]:
     conn = ibm_db.connect(_connection_string(settings), "", "")
     try:
         stmt = ibm_db.exec_immediate(conn, sql)
+        field_count = ibm_db.num_fields(stmt)
         columns = [
             ibm_db.field_name(stmt, i)
-            for i in range(ibm_db.num_fields(stmt))
+            for i in range(field_count)
+        ]
+        types = [
+            ibm_db.field_type(stmt, i)
+            for i in range(field_count)
         ]
         rows: list[list[Any]] = []
         while True:
@@ -41,7 +46,7 @@ def run_and_encode(sql: str, settings) -> dict[str, Any]:
             if row is False or row is None:
                 break
             rows.append([encode_value(value) for value in row])
-        return {"columns": columns, "rows": rows}
+        return {"columns": columns, "types": types, "rows": rows}
     finally:
         ibm_db.close(conn)
 

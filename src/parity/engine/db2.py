@@ -8,6 +8,7 @@ imported lazily so tests need no Db2 server.
 from __future__ import annotations
 
 from parity.config import DatabaseSettings
+from parity.engine.db2_types import convert_row
 from parity.engine.result import ResultSet
 from parity.engine.safety import assert_read_only
 
@@ -47,13 +48,15 @@ class Db2Executor:
         conn = ibm_db.connect(_connection_string(self._settings), "", "")
         try:
             stmt = ibm_db.exec_immediate(conn, sql)
-            columns = tuple(ibm_db.field_name(stmt, i) for i in range(ibm_db.num_fields(stmt)))
+            field_count = ibm_db.num_fields(stmt)
+            columns = tuple(ibm_db.field_name(stmt, i) for i in range(field_count))
+            column_types = [ibm_db.field_type(stmt, i) for i in range(field_count)]
             rows: list[tuple] = []
             while True:
                 row = ibm_db.fetch_tuple(stmt)
                 if row is False or row is None:
                     break
-                rows.append(tuple(row))
+                rows.append(convert_row(tuple(row), column_types))
                 if len(rows) > self._row_limit:
                     raise ValueError(f"result exceeds row limit of {self._row_limit}")
             return ResultSet(columns=columns, rows=tuple(rows))
