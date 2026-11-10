@@ -91,3 +91,25 @@ def test_cli_kb_review_unknown_candidate_exit_2(capsys):
     code = cli.main(["kb-review", "--action", "reject", "--title", "missing"])
     assert code == 2
     assert "error:" in capsys.readouterr().out
+
+
+def test_list_shows_the_title_on_its_own_line():
+    kb = InMemoryKb()
+    kb.add(KnownDifference(title="rule abc123: SELECT 1", source_pattern="SELECT 1", db2_pattern="SELECT 1 AS 1"))
+    text = run_review(kb, "list")
+    lines = text.splitlines()
+    assert lines[0] == "rule abc123: SELECT 1"
+    assert lines[1] == "    source: SELECT 1"
+
+
+def test_approve_of_an_unknown_title_fails():
+    kb = InMemoryKb()
+    with pytest.raises(KeyError):
+        run_review(kb, "approve", "missing")
+
+
+def test_approve_of_an_already_verified_entry_fails():
+    kb = InMemoryKb()
+    kb.add(KnownDifference(title="t", source_pattern="s", db2_pattern="d", verified=True))
+    with pytest.raises(ValueError, match="already verified"):
+        run_review(kb, "approve", "t")
