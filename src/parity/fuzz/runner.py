@@ -16,7 +16,12 @@ from typing import Any
 
 from parity.config import DatabaseSettings
 from parity.engine.executor import DatabaseExecutor
-from parity.fuzz.loader import load_db2_rows, load_postgres_rows, read_base_rows
+from parity.fuzz.loader import (
+    delete_fuzz_rows,
+    load_db2_rows,
+    load_postgres_rows,
+    read_base_rows,
+)
 from parity.fuzz.plan import FuzzPlan, build_plan, generate_rows
 from parity.report.risk import QueryReport
 from parity.sync.data import checksum_rows
@@ -99,10 +104,13 @@ def run_fuzz_case(
 
     outcomes: list[FuzzOutcome] = []
     for table in tables:
+        if not any(column.primary_key for column in table.columns):
+            continue
         base_rows = read_base_rows(settings, table, limit=1)
         if not base_rows:
             continue
         rows, plan = prepare_rows(table, base_rows[0], rows_per_table, seed=seed)
+        delete_fuzz_rows(settings, admin, table)
         load_fuzz_rows(settings, admin, table, rows)
         outcomes.append(
             FuzzOutcome(

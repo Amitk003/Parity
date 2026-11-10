@@ -11,6 +11,34 @@ from __future__ import annotations
 from parity.config import DatabaseSettings
 from parity.sync.schema import TableDef
 
+KEY_OFFSET = 1_000_000
+
+
+def delete_fuzz_rows(settings: DatabaseSettings, admin, table: TableDef) -> int:
+    """Remove the rows of an earlier fuzz run.
+
+    The fuzzer writes rows with a key above the offset. A
+    clean run keeps the fuzz dataset reproducible: the same
+    seed gives the same rows.
+    """
+    key_columns = [column.name for column in table.columns if column.primary_key]
+    if not key_columns:
+        return 0
+    key_column = key_columns[0]
+    condition = f'"{key_column}" >= {KEY_OFFSET}'
+    settings.require_complete("PostgreSQL")
+    import psycopg
+
+    conninfo = (
+        f"host={settings.host} port={settings.port} dbname={settings.database} "
+        f"user={settings.user} password={settings.password}"
+    )
+    with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
+        cursor.execute(f'DELETE FROM "{table.name}" WHERE {condition}')
+        deleted = cursor.rowcount
+    admin.execute_ddl(f'DELETE FROM "{table.name.upper()}" WHERE {condition}')
+    return max(deleted, 0)
+
 
 def load_postgres_rows(
     settings: DatabaseSettings, table: TableDef, rows: list[tuple]
