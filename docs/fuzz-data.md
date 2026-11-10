@@ -22,7 +22,7 @@ The fuzzer makes tricky test rows for each table. The same rows load into both d
 
 ## Schema awareness
 
-Plans read the Postgres schema. NOT NULL columns never get the null category. Text values longer than the column width are cut to the width, so fuzz rows always fit. Skipped categories are recorded on the plan.
+Plans read the Postgres schema. NOT NULL columns never get the null category. The values fit the column type: a rounding value only goes into a decimal column, and a text value is cut so that the byte count fits the Db2 column width. The primary key keeps a fresh value so the rows do not clash with the base data. Skipped categories are recorded on the plan.
 
 Categories are picked by column type. Text columns get text edge cases. Number columns get extreme and rounding values. Date columns get DST and timezone dates.
 
