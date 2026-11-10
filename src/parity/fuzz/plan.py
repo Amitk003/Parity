@@ -88,21 +88,33 @@ def build_plan(table: TableDef, seed: int = 42) -> FuzzPlan:
     return FuzzPlan(table=table.name, columns=tuple(columns), seed=seed)
 
 
-def generate_rows(plan: FuzzPlan, base_row: tuple[Any, ...], count: int) -> list[tuple[Any, ...]]:
+def generate_rows(
+    plan: FuzzPlan,
+    base_row: tuple[Any, ...],
+    count: int,
+    skip_columns: tuple[str, ...] = (),
+) -> list[tuple[Any, ...]]:
     """Generate fuzz rows from a base row.
 
     Each row starts as a copy of the base row, then
     one or two columns get edge values. The seed
-    makes the output repeatable.
+    makes the output repeatable. Columns in
+    skip_columns keep their base value, which is how
+    a primary key stays unique.
     """
     if count <= 0:
         raise ValueError("count must be positive")
     rng = random.Random(plan.seed)
     rows: list[tuple[Any, ...]] = []
     width = len(plan.columns)
+    free = [
+        index for index, column in enumerate(plan.columns) if column.column not in skip_columns
+    ]
+    if not free:
+        free = list(range(width))
     for _ in range(count):
         row = list(base_row)
-        picks = rng.sample(range(width), k=min(2, width))
+        picks = rng.sample(free, k=min(2, len(free)))
         for index in picks:
             values = plan.columns[index].values
             if values:
