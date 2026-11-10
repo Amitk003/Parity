@@ -58,9 +58,18 @@ def test_trailing_space_is_its_own_category():
     assert result.diffs[0].kind is DiffKind.TRAILING_SPACE
 
 
-def test_decimal_needs_exact_match():
+def test_decimal_difference_below_tolerance_matches():
+    """A difference no decimal scale can store is not a real difference."""
     source = make(["v"], [(Decimal("0.1"),)])
     target = make(["v"], [(Decimal("0.1000000001"),)])
+    result = compare_result_sets(source, target)
+    assert result.status is ComparisonStatus.MATCH
+
+
+def test_decimal_real_difference_still_mismatches():
+    """One unit of a DECIMAL(18,6) column must always be caught."""
+    source = make(["v"], [(Decimal("999999.990000"),)])
+    target = make(["v"], [(Decimal("999999.990001"),)])
     result = compare_result_sets(source, target)
     assert result.status is ComparisonStatus.MISMATCH
 
