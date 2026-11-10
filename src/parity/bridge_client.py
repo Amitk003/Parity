@@ -41,7 +41,10 @@ def _run_statement(conn, sql: str, params: list[Any]) -> dict[str, Any]:
             ibm_db.bind_param(stmt, index, value)
     else:
         stmt = ibm_db.exec_immediate(conn, sql)
-    field_count = ibm_db.num_fields(stmt)
+    try:
+        field_count = ibm_db.num_fields(stmt)
+    except Exception:  # noqa: BLE001 - a statement without a result set has no fields
+        return {"columns": [], "types": [], "rows": []}
     columns = [ibm_db.field_name(stmt, i) for i in range(field_count)]
     types = [ibm_db.field_type(stmt, i) for i in range(field_count)]
     rows: list[list[Any]] = []
