@@ -46,7 +46,7 @@ This page lists the Postgres versus Db2 differences that Parity has actually see
 - Category: COLUMN_NAME
 - Why it matters: the mismatch is not limited to aggregates. Any unaliased function call in the select list gets the expression text as its name on Db2.
 - Scale: found 9 times in a 129 query sample workload, which is 7 percent of the workload. The cases are `EXTRACT`, `UPPER`, `LENGTH`, `SUBSTRING`, and a multiplication.
-- Status: open. The `aggregate_alias` rule covers aggregates only. Extending it to scalar functions is future work.
+- Status: fixed. The `alias_expressions` rule gives every unaliased select item the name Postgres gives it, using a select list scanner instead of a regex. The workload now matches completely.
 
 ### 6. Aggregate scale on decimals
 
@@ -69,8 +69,10 @@ These hypotheses were tested live and both databases agreed:
 
 These were found live and Parity now handles them:
 
-- Unaliased aggregate column name, fixed by the `aggregate_alias` rule.
+- Unaliased aggregate column name, and then every unaliased select expression. The `alias_expressions` rule names each select item the way Postgres names it. It uses a select list scanner, so it never touches a WHERE clause or an ORDER BY.
 - `OFFSET` without `LIMIT`, fixed by the `offset_to_rows` rule. Db2 needs `OFFSET n ROWS`.
+- Db2 returns a DECIMAL column as text. The Db2 executor now converts decimal columns before compare.
+- Db2 returns a BOOLEAN column as an integer. The comparator now treats `true` as `1` and `false` as `0`.
 
 ## Engine bugs found by the sample workload
 
@@ -78,6 +80,8 @@ The 129 query workload exposed two false positives in the engine. Both were real
 
 - Db2 returns a DECIMAL column as text, for example `1000.000000`, while Postgres returns a Decimal. Comparing them reported a type difference. The Db2 executor now converts decimal columns using the driver column type.
 - Db2 returns a BOOLEAN column as an integer, while Postgres returns a boolean. The comparator now treats `true` as `1` and `false` as `0`.
+
+The workload also exposed a bridge problem. Under parallel runs a container can fail to start. The bridge now retries once and keeps the real reason in the error message.
 
 ## Hypotheses still to confirm
 

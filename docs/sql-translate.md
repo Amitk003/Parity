@@ -12,7 +12,10 @@ The translator rewrites PostgreSQL SQL into Db2 SQL with safe rules. It runs bef
 - `now_to_current_timestamp`: `now()` becomes `CURRENT_TIMESTAMP`.
 - `random_to_rand`: `random()` becomes `RAND()`.
 - `substring_from_to_comma`: `SUBSTRING(name FROM 2 FOR 3)` becomes `SUBSTRING(name, 2, 3)`.
-- `aggregate_alias`: a bare `COUNT(*)` becomes `COUNT(*) AS COUNT`. Db2 names an unaliased aggregate column by its expression text, Postgres names it by the function. The alias makes both return the same name. Applied to `COUNT`, `SUM`, `MIN`, `MAX`, and `AVG` only in the select list position, which means before `,`, `)`, `FROM`, or the end of the query. `HAVING COUNT(*) > 1` and `ORDER BY COUNT(*) DESC` are left alone. One known limit: a bare `COUNT(*)` at the very end of `ORDER BY` gets aliased by mistake, the query then fails loudly on Db2. Alias those by hand today.
+- `alias_expressions`: gives a name to every unaliased select item. Db2 names an unaliased expression by its text, for example `1` or `2`. Postgres names a function call by the function and any other expression by `?column?`. The rule uses a select list scanner, not a regex, so it never touches a WHERE clause, a GROUP BY, an ORDER BY, or a function call inside another function. An item that already has a name is left alone. It replaces the earlier `aggregate_alias` rule, which handled only aggregates and had a known limit with a bare `COUNT(*)` at the end of an ORDER BY.
+- `offset_to_rows`: `OFFSET 2` becomes `OFFSET 2 ROWS`. Db2 needs the ROWS keyword, Postgres does not. The rule does not touch the output of the limit rule.
+
+The alias rule reads the select list with `src/parity/translate/select_list.py`. It tracks string literals, quoted identifiers, comments, and parenthesis depth. A comma inside a function call is not a separator, and an expression in a WHERE clause is not a select item.
 
 ## Untranslatable patterns
 

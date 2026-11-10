@@ -32,18 +32,18 @@ parity run --dir samples --out parity-report.html --json-out parity-summary.json
 
 On Db2 12.1.5.0 and Postgres 16 the workload gives:
 
-- 120 queries MATCH
-- 9 queries MISMATCH, all of them the unaliased expression column name
+- 129 queries MATCH
+- 0 mismatches
 - 0 errors
 
-That is a 93 percent match rate. Every mismatch is a real, catalogued difference and every one of them is a silent difference: both databases run the query and return rows.
+The match rate is 1.0 and the run exits with code 0. The run was repeated at concurrency 4 with the same result.
 
 ## What the workload found
 
-Running this workload found two engine bugs and one translation gap. Both engine bugs caused false mismatches on every decimal and boolean column. See the divergence catalog for the full list.
+Running this workload found two engine bugs and one translation gap. Both engine bugs caused false mismatches on every decimal and boolean column. The translator then needed a select list scanner, because Db2 names an unaliased expression by its text and Postgres names it by the function. See the divergence catalog for the full list.
 
 ## Known limits
 
 - The workload is one domain. A real application has more query shapes.
 - The data is small. Volume and performance are not tested here.
-- The 9 known mismatches are open items. A fix would extend the alias rule to scalar functions.
+- A clean run here does not mean a clean run on a real application. The workload shows that the engine and the translator agree on these query shapes.
