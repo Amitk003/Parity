@@ -8,6 +8,9 @@ Db2Executor and the safety guard.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 from parity.config import DatabaseSettings
 from parity.engine.db2 import _connection_string
 from parity.sync.schema import TableDef, build_create_table
@@ -24,6 +27,36 @@ class Db2Admin:
         import ibm_db
 
         return ibm_db.connect(_connection_string(self._settings), "", "")
+
+    def execute(
+        self, sql: str, params: Sequence[Any] = ()
+    ) -> tuple[list[str], list[tuple]]:
+        """Run one statement with bound parameters.
+
+        Return the column names and the rows. A statement
+        without a result set gives empty lists.
+        """
+        import ibm_db
+
+        conn = self._connect()
+        try:
+            if params:
+                stmt = ibm_db.prepare(conn, sql)
+                for index, value in enumerate(params, start=1):
+                    ibm_db.bind_param(stmt, index, value)
+            else:
+                stmt = ibm_db.exec_immediate(conn, sql)
+            field_count = ibm_db.num_fields(stmt)
+            columns = [ibm_db.field_name(stmt, i) for i in range(field_count)]
+            rows: list[tuple] = []
+            while True:
+                row = ibm_db.fetch_tuple(stmt)
+                if row is False or row is None:
+                    break
+                rows.append(tuple(row))
+            return columns, rows
+        finally:
+            ibm_db.close(conn)
 
     def execute_ddl(self, sql: str) -> None:
         """Run one DDL statement. Raise on error."""
