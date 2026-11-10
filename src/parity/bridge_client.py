@@ -49,6 +49,7 @@ def _run_statement(conn, sql: str, params: list[Any]) -> dict[str, Any]:
         stmt = ibm_db.prepare(conn, sql)
         for index, value in enumerate(params, start=1):
             ibm_db.bind_param(stmt, index, value)
+        ibm_db.execute(stmt)
     else:
         stmt = ibm_db.exec_immediate(conn, sql)
     if not _is_query(sql):
