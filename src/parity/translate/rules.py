@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from parity.translate.result import TranslationResult
+from parity.translate.select_list import postgres_label, select_items
 
 _CAST_TYPES = {
     "int": "INTEGER",
@@ -41,11 +42,16 @@ _UNTRANSLATABLE: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 @dataclass(frozen=True)
 class Rule:
-    """One rewrite rule."""
+    """One rewrite rule.
+
+    A rule either uses a pattern and a replacement, or a
+    rewrite function that changes the whole statement.
+    """
 
     name: str
-    pattern: re.Pattern[str]
-    replace: str | Callable[[re.Match[str]], str]
+    pattern: re.Pattern[str] | None = None
+    replace: str | Callable[[re.Match[str]], str] | None = None
+    rewrite: Callable[[str], str] | None = None
 
 
 def _cast_repl(match: re.Match[str]) -> str:
@@ -55,24 +61,44 @@ def _cast_repl(match: re.Match[str]) -> str:
     return f"CAST({expr} AS {db2_type})"
 
 
+def _alias_expressions(sql: str) -> str:
+    """Give every unaliased select item the name Postgres gives it.
+
+    Db2 names an unaliased expression by its text, for
+    example `1` or `2`. Postgres names it by the function or
+    by `?column?`. Without an alias the column names differ
+    and the comparison reports a false mismatch.
+    """
+    items = select_items(sql)
+    if not items:
+        return sql
+    edits: list[tuple[int, int, str]] = []
+    for item in items:
+        label = postgres_label(item.text)
+        if label is None:
+            continue
+        alias = f' AS "{label}"' if not _SAFE_ALIAS.match(label) else f" AS {label}"
+        end = item.end
+        while end > item.start and sql[end - 1].isspace():
+            end -= 1
+        edits.append((end, end, alias))
+    if not edits:
+        return sql
+    result = sql
+    for start, end, text in sorted(edits, reverse=True):
+        result = result[:start] + text + result[end:]
+    return result
+
+
+_SAFE_ALIAS = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
 def _limit_repl(match: re.Match[str]) -> str:
     limit = match.group(1)
     offset = match.group(2)
     if offset:
         return f"OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
     return f"FETCH FIRST {limit} ROWS ONLY"
-
-
-_ALIAS_AGG = re.compile(
-    r"\b(COUNT|SUM|MIN|MAX|AVG)\s*\(\s*([^()]*?)\s*\)(?=\s*(?:,|\)|FROM\b|\Z))",
-    re.IGNORECASE,
-)
-
-
-def _agg_repl(match: re.Match[str]) -> str:
-    func = match.group(1)
-    args = match.group(2) or "*"
-    return f"{func}({args}) AS {func}"
 
 
 _RULES: tuple[Rule, ...] = (
@@ -118,9 +144,8 @@ _RULES: tuple[Rule, ...] = (
         ),
     ),
     Rule(
-        name="aggregate_alias",
-        pattern=_ALIAS_AGG,
-        replace=_agg_repl,
+        name="alias_expressions",
+        rewrite=_alias_expressions,
     ),
     Rule(
         name="offset_to_rows",
@@ -151,8 +176,13 @@ def translate(sql: str) -> TranslationResult:
     result = sql.strip()
     applied: list[str] = []
     for rule in _RULES:
-        new_text, count = rule.pattern.subn(rule.replace, result)
-        if count:
+        if rule.rewrite is not None:
+            new_text = rule.rewrite(result)
+        else:
+            new_text, count = rule.pattern.subn(rule.replace, result)
+            if not count:
+                continue
+        if new_text != result:
             applied.append(rule.name)
             result = new_text
     return TranslationResult(
