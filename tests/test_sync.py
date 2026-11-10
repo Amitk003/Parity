@@ -60,3 +60,19 @@ def test_verify_checksums():
     verify_checksums("abc", "abc")
     with pytest.raises(ValueError, match="checksum mismatch"):
         verify_checksums("abc", "def")
+
+
+def test_map_type_keeps_text_length():
+    assert map_type("character varying", length=2) == "VARCHAR(2)"
+    assert map_type("character varying", length=150) == "VARCHAR(150)"
+    assert map_type("character", length=10) == "CHAR(10)"
+
+
+def test_map_type_keeps_decimal_precision():
+    assert map_type("numeric", precision=10, scale=2) == "DECIMAL(10, 2)"
+    assert map_type("decimal", precision=12, scale=4) == "DECIMAL(12, 4)"
+
+
+def test_map_type_without_length_uses_the_default():
+    assert map_type("character varying") == "VARCHAR(255)"
+    assert map_type("numeric") == "DECIMAL(18, 6)"
