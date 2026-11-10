@@ -69,11 +69,20 @@ def quote_ident(name: str) -> str:
 
 
 def build_create_table(table: TableDef) -> str:
-    """Build one Db2 CREATE TABLE statement."""
+    """Build one Db2 CREATE TABLE statement.
+
+    The primary key is kept. A Db2 table without the key
+    would accept duplicate rows that Postgres rejects.
+    """
     parts = []
+    key_columns = []
     for col in table.columns:
         suffix = "" if col.nullable else " NOT NULL"
         parts.append(f"{quote_ident(col.name)} {col.db2_type}{suffix}")
+        if col.primary_key:
+            key_columns.append(quote_ident(col.name))
+    if key_columns:
+        parts.append(f"PRIMARY KEY ({', '.join(key_columns)})")
     columns_sql = ", ".join(parts)
     return f"CREATE TABLE {quote_ident(table.name)} ({columns_sql})"
 
