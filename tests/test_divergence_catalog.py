@@ -18,8 +18,10 @@ def test_catalog_lists_confirmed_divergences():
     assert "SELECT without FROM" in text
     assert "SQL0104N" in text
     assert "Expression SELECTs without FROM" in text
-    assert "Unaliased scalar expression column name" in text
+    assert "Unaliased expression column name" in text
+    assert "Aggregate scale on decimals" in text
     assert "Matched probes" in text
+    assert "Engine bugs found by the sample workload" in text
 
 
 def test_catalog_marks_hypotheses():
