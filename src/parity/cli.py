@@ -70,6 +70,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--llm-cache", default="", help="Optional gateway cache file")
     run.add_argument(
+        "--fix-loop",
+        action="store_true",
+        help="Let the agent loop try to fix a mismatch and prove the fix",
+    )
+    run.add_argument(
         "--replay",
         action="store_true",
         help="Replay mode: agent calls come from the cache only, no network",
@@ -140,7 +145,7 @@ def _build_schema(source_settings):
 
 def _build_gateway(args) -> Gateway | None:
     """Build the optional gateway for the run command."""
-    if not (args.llm_cache or args.replay):
+    if not (args.llm_cache or args.replay or args.fix_loop):
         return None
     from parity.gateway.cache import InMemoryCache
     from parity.gateway.client import Gateway
@@ -189,6 +194,7 @@ def _run_pipeline(args) -> int:
         gateway=gateway,
         concurrency=args.concurrency,
         schema=schema,
+        fix_loop=args.fix_loop,
     )
     exit_code = _pipeline_exit_code(reports)
     run_id: int | None = None
@@ -301,6 +307,7 @@ def _run_replay(args) -> int:
         llm_cache=args.cache,
         replay=True,
         bridge=args.bridge,
+        fix_loop=False,
     )
     print("replay mode: agent calls come from cache only")
     return _run_pipeline(forwarded)

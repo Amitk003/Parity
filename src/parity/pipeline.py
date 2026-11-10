@@ -60,7 +60,9 @@ def _agent_translate(
     return sql, ""
 
 
-def _process_query(query, source, target, gateway, schema=None) -> QueryReport:
+def _process_query(
+    query, source, target, gateway, schema=None, fix_loop: bool = False
+) -> QueryReport:
     """Run one query through translate and compare."""
     if not query.read_only:
         result = ComparisonResult(
@@ -96,6 +98,33 @@ def _process_query(query, source, target, gateway, schema=None) -> QueryReport:
         )
         applied_rules = translation.applied_rules
     result = run_comparison(source, target, query.source_sql, db2_sql)
+    if fix_loop and result.status is ComparisonStatus.MISMATCH:
+        from parity.agents.loop import run_fix_loop
+
+        table = query.tables[0] if query.tables else None
+        outcome = run_fix_loop(
+            query.source_sql,
+            db2_sql,
+            result,
+            source,
+            target,
+            gateway,
+            table=table,
+        )
+        if outcome.is_fixed:
+            result = ComparisonResult(
+                status=ComparisonStatus.MATCH,
+                note=outcome.note,
+                settings=result.settings,
+            )
+            applied_rules = ("agent_fix",)
+        elif outcome.note:
+            result = ComparisonResult(
+                status=result.status,
+                diffs=result.diffs,
+                settings=result.settings,
+                note=outcome.note,
+            )
     return QueryReport.from_result(
         query.query_id,
         query.source_sql,
@@ -112,23 +141,28 @@ def run_pipeline(
     gateway: Gateway | None = None,
     concurrency: int = 1,
     schema=None,
+    fix_loop: bool = False,
 ) -> list[QueryReport]:
     """Run the full pipeline. Return report entries.
 
     The optional schema gives the translator the column
-    types, so a type aware rule can fire.
+    types, so a type aware rule can fire. With fix_loop a
+    mismatch goes to the agent loop, which tries to fix it
+    and proves the fix on both databases.
     """
     validate_row_limit(concurrency)
     queries = deduplicate(load_sql_dir(workload_dir))
     if concurrency == 1:
         return [
-            _process_query(query, source, target, gateway, schema)
+            _process_query(query, source, target, gateway, schema, fix_loop)
             for query in queries
         ]
     indexed: list[tuple[int, QueryReport]] = []
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = {
-            pool.submit(_process_query, query, source, target, gateway, schema): index
+            pool.submit(
+                _process_query, query, source, target, gateway, schema, fix_loop
+            ): index
             for index, query in enumerate(queries)
         }
         for future in as_completed(futures):
