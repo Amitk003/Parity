@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import time
 
 from parity.config import DatabaseSettings
 from parity.engine.db2_types import convert_row
@@ -22,6 +23,8 @@ from parity.engine.safety import assert_read_only
 
 _DEFAULT_IMAGE = "parity-bridge:latest"
 _DEFAULT_ROW_LIMIT = 100_000
+_BRIDGE_ATTEMPTS = 2
+_BRIDGE_RETRY_SECONDS = 1.0
 
 
 class Db2BridgeExecutor:
@@ -65,9 +68,8 @@ class Db2BridgeExecutor:
             "parity.bridge_client",
         ]
 
-    def execute(self, sql: str, timeout_seconds: float = 60.0) -> ResultSet:
-        """Run SQL through the bridge. Return the result set."""
-        assert_read_only(sql)
+    def _run(self, sql: str, timeout_seconds: float) -> str:
+        """Run the bridge once. Return the raw output."""
         completed = subprocess.run(
             self._docker_command(),
             input=sql,
@@ -77,9 +79,35 @@ class Db2BridgeExecutor:
             check=False,
         )
         if completed.returncode != 0:
-            raise RuntimeError(f"bridge failed: {completed.stderr.strip()[:300]}")
+            detail = (completed.stderr or completed.stdout or "").strip()[:300]
+            raise RuntimeError(
+                f"bridge failed (exit {completed.returncode}): {detail}"
+            )
+        return completed.stdout
+
+    def _run_with_retry(self, sql: str, timeout_seconds: float) -> str:
+        """Run the bridge, retrying a container that failed to start.
+
+        Starting a container can fail for a short time under
+        load. The query is read only, so a retry is safe.
+        """
+        last_error: Exception | None = None
+        for attempt in range(_BRIDGE_ATTEMPTS):
+            try:
+                return self._run(sql, timeout_seconds)
+            except RuntimeError as exc:
+                last_error = exc
+                if "bridge failed" not in str(exc):
+                    raise
+                time.sleep(_BRIDGE_RETRY_SECONDS * (attempt + 1))
+        raise last_error if last_error else RuntimeError("bridge failed")
+
+    def execute(self, sql: str, timeout_seconds: float = 60.0) -> ResultSet:
+        """Run SQL through the bridge. Return the result set."""
+        assert_read_only(sql)
+        output = self._run_with_retry(sql, timeout_seconds)
         try:
-            payload = json.loads(completed.stdout)
+            payload = json.loads(output)
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"bridge returned bad JSON: {exc}") from exc
         if "error" in payload:
