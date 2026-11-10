@@ -57,6 +57,36 @@ This page lists the Postgres versus Db2 differences that Parity has actually see
 - Why it matters: the two engines keep a different scale for a computed average. The values differ by 3.34e-17.
 - Status: known and handled. Parity compares decimals exactly first and then forgives a difference below 1e-9 absolute. A difference that no decimal scale can store is not a real difference. A real difference such as one unit of a DECIMAL(18,6) column is always reported.
 
+### 7. Empty string and blank string compare equal on Db2
+
+- Query: `SELECT COUNT(*) FROM customers WHERE country = ''`
+- Postgres: 2 rows
+- Db2: 3 rows
+- Query: `SELECT COUNT(*) FROM customers WHERE country = ' '`
+- Postgres: 1 row
+- Db2: 3 rows
+- The stored values are identical on both sides. One value is an empty string, one is a single space, one is NULL.
+- Category: VALUE
+- Why it matters: Db2 treats an empty string and a string of blanks as equal in a comparison. Postgres does not. A filter on an empty string returns a different set of rows, so a report or a join can silently change.
+- Status: open. This is the risk that the roadmap listed first, and it is now confirmed on live databases.
+
+### 8. SUM of an integer column overflows on Db2
+
+- Query: `SELECT SUM(quantity) FROM order_items`
+- Postgres: `SUM` of an integer returns a bigint, so the sum does not overflow.
+- Db2: `SUM` of an INTEGER returns an INTEGER. The sum overflows and the query fails with SQL0802N.
+- Category: ERROR
+- Why it matters: the query works on Postgres and fails on Db2 once the numbers grow. A report that sums an amount column can crash after the migration.
+- Status: open. A fix needs the column type, because casting a decimal column to an integer would change the value. The translator needs the schema for that.
+
+### 9. LIMIT over a sort key that is not unique picks different rows
+
+- Query: `SELECT id, order_date FROM orders ORDER BY order_date DESC LIMIT 5`
+- Postgres and Db2 both put the NULL rows first for a descending sort. The order of the rows that tie on the sort key is different on each database, so the LIMIT window holds different rows.
+- Category: VALUE
+- Why it matters: this is the worst kind of silent difference. Both queries run, both return five rows, and the rows are different. A paginated list shows a different page on each database.
+- Status: open. It cannot be fixed in the tool, because SQL does not define the order of tied rows. It must be reported, and the fix belongs to the query, for example a unique sort key.
+
 ## Matched probes (no divergence)
 
 These hypotheses were tested live and both databases agreed:
@@ -64,6 +94,11 @@ These hypotheses were tested live and both databases agreed:
 - `SELECT name FROM customers ORDER BY name` including NULL ordering.
 - `SELECT COUNT(*) FROM customers WHERE name IS NULL`.
 - Text comparison with a trailing space in a stored column.
+- NULL sort position in a descending sort. Both databases put the NULL rows first for a descending sort.
+
+## The fuzz run that found these
+
+A fuzz run over the sample workload loads 20 edge case rows into every table of both databases and then runs the whole workload. The first run reported 15 mismatches and 4 errors out of 129 queries. Most of them came from two real differences: the empty string and blank string rule, and the integer sum overflow. Eight were only a different order of tied rows, which Parity now reports as its own difference kind instead of a wrong value.
 
 ## Divergences that were fixed
 
