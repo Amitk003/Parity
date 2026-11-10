@@ -22,7 +22,8 @@ ORDER BY table_name
 """
 
 _COLUMNS_SQL = """
-SELECT column_name, data_type, is_nullable
+SELECT column_name, data_type, is_nullable,
+       character_maximum_length, numeric_precision, numeric_scale
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = %s
 ORDER BY ordinal_position
@@ -97,7 +98,12 @@ def introspect_postgres(settings: DatabaseSettings) -> tuple[TableDef, ...]:
             columns = tuple(
                 ColumnDef(
                     name=row[0],
-                    db2_type=map_type(row[1]),
+                    db2_type=map_type(
+                        row[1],
+                        length=row[3],
+                        precision=row[4],
+                        scale=row[5],
+                    ),
                     nullable=row[2] == "YES",
                     primary_key=(name, row[0]) in primary_keys,
                 )

@@ -35,13 +35,32 @@ _TYPE_MAP: dict[str, str] = {
 }
 
 
-def map_type(postgres_type: str) -> str:
-    """Map one PostgreSQL type name to a Db2 type."""
+def map_type(
+    postgres_type: str,
+    length: int | None = None,
+    precision: int | None = None,
+    scale: int | None = None,
+) -> str:
+    """Map one PostgreSQL type name to a Db2 type.
+
+    The length of a text column and the precision of a
+    decimal are kept. A Db2 column that is wider than the
+    source column can hold a value the source rejects, so
+    the widths must match.
+    """
     key = postgres_type.strip().lower()
+    if key == "character varying":
+        return f"VARCHAR({length})" if length else "VARCHAR(255)"
+    if key == "character":
+        return f"CHAR({length})" if length else "CHAR(255)"
+    if key in ("numeric", "decimal"):
+        if precision and scale is not None:
+            return f"DECIMAL({precision}, {scale})"
+        return "DECIMAL(18, 6)"
     if key in _TYPE_MAP:
         return _TYPE_MAP[key]
     if key.startswith("character varying"):
-        return "VARCHAR(255)"
+        return f"VARCHAR({length})" if length else "VARCHAR(255)"
     if key.startswith(("numeric", "decimal")):
         return "DECIMAL(18, 6)"
     raise ValueError(f"no Db2 mapping for type: {postgres_type}")
