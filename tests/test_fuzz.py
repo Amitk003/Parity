@@ -34,6 +34,14 @@ def test_categories_by_type():
     assert categories_for_db2_type("BLOB(1MB)") == categories_for_db2_type("VARCHAR(255)")
 
 
+def test_categories_fit_the_column_type():
+    """A rounding value only fits a decimal column."""
+    assert "rounding_number" not in categories_for_db2_type("INTEGER")
+    assert "rounding_number" in categories_for_db2_type("DECIMAL(10, 2)")
+    assert "unicode" not in categories_for_db2_type("INTEGER")
+    assert "dst_date" not in categories_for_db2_type("DECIMAL(10, 2)")
+
+
 def test_build_plan_covers_all_columns():
     plan = build_plan(demo_table())
     assert [c.column for c in plan.columns] == ["id", "name"]
