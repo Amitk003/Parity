@@ -31,6 +31,16 @@ def encode_value(value: Any) -> Any:
     return str(value)
 
 
+def _is_query(sql: str) -> bool:
+    """True when the statement returns a result set.
+
+    A statement that changes data has no result set, and
+    the driver cannot read the columns of such a
+    statement.
+    """
+    return sql.strip().upper().startswith(("SELECT", "WITH", "VALUES"))
+
+
 def _run_statement(conn, sql: str, params: list[Any]) -> dict[str, Any]:
     """Run one statement with bound parameters."""
     import ibm_db
@@ -41,10 +51,9 @@ def _run_statement(conn, sql: str, params: list[Any]) -> dict[str, Any]:
             ibm_db.bind_param(stmt, index, value)
     else:
         stmt = ibm_db.exec_immediate(conn, sql)
-    try:
-        field_count = ibm_db.num_fields(stmt)
-    except Exception:  # noqa: BLE001 - a statement without a result set has no fields
+    if not _is_query(sql):
         return {"columns": [], "types": [], "rows": []}
+    field_count = ibm_db.num_fields(stmt)
     columns = [ibm_db.field_name(stmt, i) for i in range(field_count)]
     types = [ibm_db.field_type(stmt, i) for i in range(field_count)]
     rows: list[list[Any]] = []
