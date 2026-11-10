@@ -29,7 +29,9 @@ def schema() -> SchemaContext:
 
 def test_sum_of_integer_column_gets_a_bigint_cast():
     result = translate("SELECT SUM(quantity) FROM order_items", schema=schema())
-    assert result.db2_sql == "SELECT SUM(CAST(quantity AS BIGINT)) FROM order_items"
+    assert result.db2_sql == (
+        "SELECT SUM(CAST(quantity AS BIGINT)) AS sum FROM order_items"
+    )
     assert "sum_to_bigint" in result.applied_rules
 
 
@@ -50,7 +52,7 @@ def test_sum_with_a_qualified_column():
         "SELECT SUM(oi.quantity) FROM order_items oi", schema=schema()
     )
     assert result.db2_sql == (
-        "SELECT SUM(CAST(oi.quantity AS BIGINT)) FROM order_items oi"
+        "SELECT SUM(CAST(oi.quantity AS BIGINT)) AS sum FROM order_items oi"
     )
 
 

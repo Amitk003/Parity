@@ -14,7 +14,7 @@ def test_clean_query_unchanged():
 
 def test_cast_rule():
     result = translate("SELECT id::text FROM users")
-    assert result.db2_sql == "SELECT CAST(id AS VARCHAR(4000)) FROM users"
+    assert result.db2_sql == "SELECT CAST(id AS VARCHAR(4000)) AS text FROM users"
     assert "cast_double_colon" in result.applied_rules
 
 
@@ -72,7 +72,12 @@ def test_rules_listed():
 
 def test_combined_rewrites_recorded():
     result = translate("SELECT id::int FROM users WHERE name ILIKE 'a%' LIMIT 5")
-    assert set(result.applied_rules) == {"cast_double_colon", "ilike_to_upper_like", "limit_offset_to_fetch"}
+    assert set(result.applied_rules) == {
+        "cast_double_colon",
+        "ilike_to_upper_like",
+        "limit_offset_to_fetch",
+        "alias_expressions",
+    }
 
 
 def test_aggregate_alias_bare_count():
