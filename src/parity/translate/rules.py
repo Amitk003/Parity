@@ -122,6 +122,11 @@ _RULES: tuple[Rule, ...] = (
         pattern=_ALIAS_AGG,
         replace=_agg_repl,
     ),
+    Rule(
+        name="offset_to_rows",
+        pattern=re.compile(r"\bOFFSET\s+(\d+)(?!\s+ROWS)\b", re.IGNORECASE),
+        replace=r"OFFSET \1 ROWS",
+    ),
 )
 
 

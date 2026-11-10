@@ -105,3 +105,15 @@ def test_aggregate_alias_skips_having_and_order():
     result = translate("SELECT name FROM t ORDER BY COUNT(*) DESC")
     assert "aggregate_alias" not in result.applied_rules
     assert "ORDER BY COUNT(*) DESC" in result.db2_sql
+
+
+def test_offset_without_limit_becomes_rows():
+    result = translate("SELECT id, name FROM products ORDER BY name OFFSET 2")
+    assert result.db2_sql == "SELECT id, name FROM products ORDER BY name OFFSET 2 ROWS"
+    assert "offset_to_rows" in result.applied_rules
+
+
+def test_offset_with_limit_not_doubled():
+    result = translate("SELECT id FROM t LIMIT 5 OFFSET 2")
+    assert result.db2_sql == "SELECT id FROM t OFFSET 2 ROWS FETCH NEXT 5 ROWS ONLY"
+    assert "offset_to_rows" not in result.applied_rules
