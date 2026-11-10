@@ -136,6 +136,14 @@ def _limit_repl(match: re.Match[str]) -> str:
 
 _RULES: tuple[Rule, ...] = (
     Rule(
+        name="sum_to_bigint",
+        rewrite=_sum_to_bigint,
+    ),
+    Rule(
+        name="alias_expressions",
+        rewrite=_alias_expressions,
+    ),
+    Rule(
         name="cast_double_colon",
         pattern=re.compile(
             r"(\S+?)::\s*(double\s+precision|smallint|integer|int|bigint|boolean|"
@@ -175,14 +183,6 @@ _RULES: tuple[Rule, ...] = (
             if m.group(3)
             else f"SUBSTRING({m.group(1)}, {m.group(2)})"
         ),
-    ),
-    Rule(
-        name="sum_to_bigint",
-        rewrite=_sum_to_bigint,
-    ),
-    Rule(
-        name="alias_expressions",
-        rewrite=_alias_expressions,
     ),
     Rule(
         name="offset_to_rows",
