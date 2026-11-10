@@ -222,151 +222,90 @@ class Db2Kb:
 
     def add(self, entry: KnownDifference) -> None:
         """Add one entry with its embedding."""
-        from parity.sync.db2_admin import Db2Admin
-
-        if not isinstance(self._admin, Db2Admin):
-            raise TypeError("Db2Kb needs a Db2Admin instance")
         if not entry.embedding:
             entry.embedding = self._embedder.embed(entry.search_text())
-        import ibm_db
-
-        conn = self._admin._connect()
-        try:
-            literal = _vector_literal(entry.embedding)
-            stmt = ibm_db.prepare(
-                conn,
-                "INSERT INTO known_difference "
-                "(title, source_pattern, db2_pattern, cause, fix_template, verified, evidence_run_id, embedding) "
-                f"VALUES (?, ?, ?, ?, ?, ?, ?, {literal})",
-            )
-            values = [
-                entry.title,
-                entry.source_pattern,
-                entry.db2_pattern,
-                entry.cause,
-                entry.fix_template,
-                1 if entry.verified else 0,
-                entry.evidence_run_id,
-            ]
-            for index, value in enumerate(values, start=1):
-                ibm_db.bind_param(stmt, index, value)
-            ibm_db.execute(stmt)
-        finally:
-            ibm_db.close(conn)
+        literal = _vector_literal(entry.embedding)
+        sql = (
+            "INSERT INTO known_difference "
+            "(title, source_pattern, db2_pattern, cause, fix_template, verified, "
+            f"evidence_run_id, embedding) VALUES (?, ?, ?, ?, ?, ?, ?, {literal})"
+        )
+        values = [
+            entry.title,
+            entry.source_pattern,
+            entry.db2_pattern,
+            entry.cause,
+            entry.fix_template,
+            1 if entry.verified else 0,
+            entry.evidence_run_id,
+        ]
+        self._admin.execute(sql, values)
 
     def approve(self, title: str) -> None:
         """Mark one entry verified."""
-        import ibm_db
-
-        conn = self._admin._connect()
-        try:
-            stmt = ibm_db.prepare(
-                conn, "UPDATE known_difference SET verified = 1 WHERE title = ?"
-            )
-            ibm_db.bind_param(stmt, 1, title)
-            ibm_db.execute(stmt)
-        finally:
-            ibm_db.close(conn)
+        self._admin.execute(
+            "UPDATE known_difference SET verified = 1 WHERE title = ?", [title]
+        )
 
     def reject(self, title: str) -> None:
         """Remove one unverified entry."""
-        import ibm_db
-
-        conn = self._admin._connect()
-        try:
-            stmt = ibm_db.prepare(
-                conn, "SELECT verified FROM known_difference WHERE title = ?"
-            )
-            ibm_db.bind_param(stmt, 1, title)
-            ibm_db.execute(stmt)
-            row = ibm_db.fetch_tuple(stmt)
-            if row is None or row is False:
-                raise KeyError(f"unknown entry: {title}")
-            if int(row[0]) == 1:
-                raise ValueError("verified entries cannot be rejected")
-        finally:
-            ibm_db.close(conn)
-        conn = self._admin._connect()
-        try:
-            stmt = ibm_db.prepare(
-                conn,
-                "DELETE FROM known_difference WHERE title = ? AND verified = 0",
-            )
-            ibm_db.bind_param(stmt, 1, title)
-            ibm_db.execute(stmt)
-        finally:
-            ibm_db.close(conn)
+        _, rows = self._admin.execute(
+            "SELECT verified FROM known_difference WHERE title = ?", [title]
+        )
+        if not rows:
+            raise KeyError(f"unknown entry: {title}")
+        if int(rows[0][0]) == 1:
+            raise ValueError("verified entries cannot be rejected")
+        self._admin.execute(
+            "DELETE FROM known_difference WHERE title = ? AND verified = 0", [title]
+        )
 
     def list_candidates(self) -> tuple[KnownDifference, ...]:
         """List unverified entries for human review."""
-        import ibm_db
-
-        conn = self._admin._connect()
-        try:
-            stmt = ibm_db.prepare(
-                conn,
-                "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
-                "evidence_run_id FROM known_difference WHERE verified = 0 ORDER BY title",
+        _, rows = self._admin.execute(
+            "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
+            "evidence_run_id FROM known_difference WHERE verified = 0 ORDER BY title"
+        )
+        return tuple(
+            KnownDifference(
+                title=row[0],
+                source_pattern=row[1],
+                db2_pattern=row[2],
+                cause=row[3] or "",
+                fix_template=row[4] or "",
+                verified=False,
+                evidence_run_id=int(row[5]) if row[5] is not None else None,
             )
-            ibm_db.execute(stmt)
-            entries: list[KnownDifference] = []
-            while True:
-                row = ibm_db.fetch_tuple(stmt)
-                if row is None or row is False:
-                    break
-                entries.append(
-                    KnownDifference(
-                        title=row[0],
-                        source_pattern=row[1],
-                        db2_pattern=row[2],
-                        cause=row[3] or "",
-                        fix_template=row[4] or "",
-                        verified=False,
-                        evidence_run_id=int(row[5]) if row[5] is not None else None,
-                    )
-                )
-            return tuple(entries)
-        finally:
-            ibm_db.close(conn)
+            for row in rows
+        )
 
     def search(
         self, query: str, limit: int = 5, category: str = ""
     ) -> tuple[ScoredDifference, ...]:
         """Search verified entries with VECTOR_DISTANCE."""
-        import ibm_db
-
         query_vector = self._embedder.embed(query)
         literal = _vector_literal(query_vector)
         fetch_limit = limit * 3 if category else limit
-        conn = self._admin._connect()
-        try:
-            stmt = ibm_db.prepare(
-                conn,
-                "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
-                f"VECTOR_DISTANCE(embedding, {literal}, COSINE) AS dist "
-                "FROM known_difference WHERE verified = 1 ORDER BY dist FETCH FIRST ? ROWS ONLY",
+        _, rows = self._admin.execute(
+            "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
+            f"VECTOR_DISTANCE(embedding, {literal}, COSINE) AS dist "
+            "FROM known_difference WHERE verified = 1 "
+            "ORDER BY dist FETCH FIRST ? ROWS ONLY",
+            [fetch_limit],
+        )
+        results: list[ScoredDifference] = []
+        for row in rows:
+            entry = KnownDifference(
+                title=row[0],
+                source_pattern=row[1],
+                db2_pattern=row[2],
+                cause=row[3] or "",
+                fix_template=row[4] or "",
+                verified=True,
             )
-            ibm_db.bind_param(stmt, 1, fetch_limit)
-            ibm_db.execute(stmt)
-            results: list[ScoredDifference] = []
-            while True:
-                row = ibm_db.fetch_tuple(stmt)
-                if row is False or row is None:
-                    break
-                entry = KnownDifference(
-                    title=row[0],
-                    source_pattern=row[1],
-                    db2_pattern=row[2],
-                    cause=row[3] or "",
-                    fix_template=row[4] or "",
-                    verified=True,
-                )
-                if entry.matches_category(category):
-                    results.append(ScoredDifference(entry, float(row[5])))
-            results = results[:limit]
-            self._searches += 1
-            if results:
-                self._hits += 1
-            return tuple(results)
-        finally:
-            ibm_db.close(conn)
+            if entry.matches_category(category):
+                results.append(ScoredDifference(entry, float(row[5])))
+        self._searches += 1
+        if results:
+            self._hits += 1
+        return tuple(results[:limit])
