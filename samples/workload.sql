@@ -80,6 +80,7 @@ SELECT id FROM orders WHERE customer_id IN (1, 5, 8) ORDER BY id;
 SELECT id FROM orders WHERE customer_id NOT IN (1, 2) ORDER BY id;
 SELECT COUNT(*) FROM orders WHERE status = 'shipped';
 SELECT COUNT(DISTINCT customer_id) FROM orders;
+SELECT COUNT(*) FROM customers WHERE country = '';
 SELECT customer_id, COUNT(*) FROM orders GROUP BY customer_id ORDER BY customer_id;
 SELECT customer_id, MAX(order_date) FROM orders GROUP BY customer_id ORDER BY customer_id;
 SELECT o.id, c.name FROM orders o JOIN customers c ON o.customer_id = c.id ORDER BY o.id;
