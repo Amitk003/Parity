@@ -124,6 +124,66 @@ def _normalize_rows(result: ResultSet) -> list[tuple[Any, ...]]:
     return [tuple(normalize_value(v) for v in row) for row in result.rows]
 
 
+def _row_diffs(
+    source_rows: list[tuple[Any, ...]],
+    target_rows: list[tuple[Any, ...]],
+    columns: tuple[str, ...],
+    cfg: EngineConfig,
+    order_matters: bool,
+) -> list[RowDiff]:
+    """Compare the rows of two result sets."""
+    if order_matters:
+        pairs = list(zip(source_rows, target_rows))
+    else:
+        pairs = list(
+            zip(
+                sorted(source_rows, key=_row_key),
+                sorted(target_rows, key=_row_key),
+            )
+        )
+    diffs: list[RowDiff] = []
+    for row_index, (left_row, right_row) in enumerate(pairs):
+        for col_index, column in enumerate(columns):
+            equal, kind = _values_equal(
+                left_row[col_index],
+                right_row[col_index],
+                cfg.float_tolerance,
+                cfg.decimal_tolerance,
+            )
+            if not equal:
+                diffs.append(
+                    RowDiff(
+                        kind=kind or DiffKind.VALUE,
+                        detail=f"row {row_index} column {column} differs",
+                        row_index=row_index,
+                        column=column,
+                        source_value=left_row[col_index],
+                        target_value=right_row[col_index],
+                    )
+                )
+                break
+        if len(diffs) >= 5:
+            break
+    return diffs
+
+
+def _tie_order_diff(
+    source_rows: list[tuple[Any, ...]],
+    target_rows: list[tuple[Any, ...]],
+) -> RowDiff:
+    """Build the diff for rows that came back in a different order."""
+    return RowDiff(
+        kind=DiffKind.TIE_ORDER,
+        detail=(
+            "the same rows came back in a different order. "
+            "The ORDER BY key is not unique, so the order of tied "
+            "rows is not defined by SQL."
+        ),
+        source_value=len(source_rows),
+        target_value=len(target_rows),
+    )
+
+
 def compare_result_sets(
     source: ResultSet,
     target: ResultSet,
@@ -176,33 +236,13 @@ def compare_result_sets(
             )
         )
 
-    if order_matters:
-        pairs = list(zip(source_rows, target_rows))
-    else:
-        pairs = list(zip(sorted(source_rows, key=_row_key), sorted(target_rows, key=_row_key)))
+    row_diffs = _row_diffs(source_rows, target_rows, source.columns, cfg, order_matters)
+    diffs.extend(row_diffs)
 
-    for row_index, (left_row, right_row) in enumerate(pairs):
-        for col_index, column in enumerate(source.columns):
-            equal, kind = _values_equal(
-                left_row[col_index],
-                right_row[col_index],
-                cfg.float_tolerance,
-                cfg.decimal_tolerance,
-            )
-            if not equal:
-                diffs.append(
-                    RowDiff(
-                        kind=kind or DiffKind.VALUE,
-                        detail=f"row {row_index} column {column} differs",
-                        row_index=row_index,
-                        column=column,
-                        source_value=left_row[col_index],
-                        target_value=right_row[col_index],
-                    )
-                )
-                break
-        if len(diffs) >= 5:
-            break
+    if diffs and order_matters and len(source_rows) == len(target_rows):
+        unordered = _row_diffs(source_rows, target_rows, source.columns, cfg, False)
+        if not unordered:
+            diffs = [_tie_order_diff(source_rows, target_rows)]
 
     if diffs:
         return ComparisonResult(ComparisonStatus.MISMATCH, tuple(diffs), settings)

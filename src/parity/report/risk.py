@@ -19,6 +19,7 @@ _WEIGHTS: dict[DiffKind, int] = {
     DiffKind.COLUMN_ORDER: 5,
     DiffKind.COLUMN_COUNT: 5,
     DiffKind.TRAILING_SPACE: 3,
+    DiffKind.TIE_ORDER: 3,
 }
 
 _STATUS_BONUS: dict[ComparisonStatus, int] = {

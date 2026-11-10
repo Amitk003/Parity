@@ -32,6 +32,7 @@ class DiffKind(str, Enum):
     NULL_VS_VALUE = "NULL_VS_VALUE"
     TRAILING_SPACE = "TRAILING_SPACE"
     TYPE = "TYPE"
+    TIE_ORDER = "TIE_ORDER"
 
 
 @dataclass(frozen=True)
