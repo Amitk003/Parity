@@ -12,7 +12,7 @@ import random
 from dataclasses import dataclass
 from typing import Any
 
-from parity.fuzz.values import categories_for_db2_type, values_for_category
+from parity.fuzz.values import categories_for_db2_type, values_for_column
 from parity.sync.schema import TableDef
 
 
@@ -73,10 +73,9 @@ def build_plan(table: TableDef, seed: int = 42) -> FuzzPlan:
         if not col.nullable and "null" in categories:
             categories = tuple(c for c in categories if c != "null")
             skipped.append("null")
-        width = _varchar_width(col.db2_type)
         values: list[Any] = []
         for category in categories:
-            values.extend(_fit_width(value, width) for value in values_for_category(category))
+            values.extend(values_for_column(col.db2_type, category))
         columns.append(
             ColumnFuzz(
                 column=col.name,
