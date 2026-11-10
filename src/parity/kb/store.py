@@ -296,6 +296,7 @@ class Db2Kb:
         fetch_limit = limit * 3 if category else limit
         _, rows = self._admin.execute(
             "SELECT title, source_pattern, db2_pattern, cause, fix_template, "
+            "evidence_run_id, "
             f"VECTOR_DISTANCE(embedding, {literal}, COSINE) AS dist "
             "FROM known_difference WHERE verified = 1 "
             "ORDER BY dist FETCH FIRST ? ROWS ONLY",
@@ -310,9 +311,10 @@ class Db2Kb:
                 cause=row[3] or "",
                 fix_template=row[4] or "",
                 verified=True,
+                evidence_run_id=int(row[5]) if row[5] is not None else None,
             )
             if entry.matches_category(category):
-                results.append(ScoredDifference(entry, float(row[5])))
+                results.append(ScoredDifference(entry, float(row[6])))
         self._searches += 1
         if results:
             self._hits += 1
