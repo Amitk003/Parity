@@ -37,6 +37,7 @@ class ComparisonRecord:
     risk_label: str
     note: str
     diff_summary: str
+    applied_rules: tuple[str, ...] = ()
 
     @classmethod
     def from_report(cls, report: QueryReport) -> ComparisonRecord:
@@ -50,6 +51,7 @@ class ComparisonRecord:
             risk_label=report.label,
             note=report.result.note,
             diff_summary=build_diff_summary(report),
+            applied_rules=report.applied_rules,
         )
 
 
