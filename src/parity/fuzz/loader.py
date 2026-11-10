@@ -36,7 +36,8 @@ def delete_fuzz_rows(settings: DatabaseSettings, admin, table: TableDef) -> int:
     with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
         cursor.execute(f'DELETE FROM "{table.name}" WHERE {condition}')
         deleted = cursor.rowcount
-    admin.execute_ddl(f'DELETE FROM "{table.name.upper()}" WHERE {condition}')
+    db2_condition = f'"{key_column.upper()}" >= {KEY_OFFSET}'
+    admin.execute_ddl(f'DELETE FROM "{table.name.upper()}" WHERE {db2_condition}')
     return max(deleted, 0)
 
 
