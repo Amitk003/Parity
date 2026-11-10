@@ -77,7 +77,7 @@ This page lists the Postgres versus Db2 differences that Parity has actually see
 - Db2: `SUM` of an INTEGER returns an INTEGER. The sum overflows and the query fails with SQL0802N.
 - Category: ERROR
 - Why it matters: the query works on Postgres and fails on Db2 once the numbers grow. A report that sums an amount column can crash after the migration.
-- Status: open. A fix needs the column type, because casting a decimal column to an integer would change the value. The translator needs the schema for that.
+- Status: fixed. The `sum_to_bigint` rule casts an integer column to a bigint inside SUM. The rule needs the column type, so the translator takes the source schema. A decimal column is never cast, because that would change the value.
 
 ### 9. LIMIT over a sort key that is not unique picks different rows
 
@@ -106,6 +106,8 @@ These were found live and Parity now handles them:
 
 - Unaliased aggregate column name, and then every unaliased select expression. The `alias_expressions` rule names each select item the way Postgres names it. It uses a select list scanner, so it never touches a WHERE clause or an ORDER BY.
 - `OFFSET` without `LIMIT`, fixed by the `offset_to_rows` rule. Db2 needs `OFFSET n ROWS`.
+- `SUM` of an integer column overflowing, fixed by the `sum_to_bigint` rule. The rule needs the column type from the source schema.
+- Db2 tables now get the primary key of the source table. A Db2 table without the key would accept duplicate rows that Postgres rejects.
 - Db2 returns a DECIMAL column as text. The Db2 executor now converts decimal columns before compare.
 - Db2 returns a BOOLEAN column as an integer. The comparator now treats `true` as `1` and `false` as `0`.
 

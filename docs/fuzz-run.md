@@ -39,6 +39,16 @@ On the sample workload with 20 rows per table:
 
 The mismatches came from two real differences: Db2 treats an empty string and a string of blanks as equal, and Db2 sorts tied rows in a different order. The failures came from Db2 overflowing on a sum of integers. All of them are in the divergence catalog.
 
+## After the schema aware translator
+
+The `sum_to_bigint` rule needs the column types, so the translator now takes the source schema. With that rule the same fuzz run gives:
+
+- 113 queries matched
+- 16 queries mismatched
+- 0 queries failed
+
+The four failures are gone. The sixteen mismatches are all real: eight are a different order of tied rows, five come from the empty string and blank string rule, and three come from a LIMIT over a sort key that is not unique.
+
 ## The data must fit both databases
 
 The fuzzer only generates values that load into both databases. Two rules matter:
