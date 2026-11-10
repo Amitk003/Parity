@@ -164,8 +164,9 @@ class InMemoryKb:
         """Mark one entry verified."""
         if title not in self._entries:
             raise KeyError(f"unknown entry: {title}")
+        if self._entries[title].verified:
+            raise ValueError("entry is already verified")
         self._entries[title].verified = True
-
     def reject(self, title: str) -> None:
         """Remove one unverified entry."""
         entry = self._entries.get(title)
@@ -243,6 +244,13 @@ class Db2Kb:
 
     def approve(self, title: str) -> None:
         """Mark one entry verified."""
+        _, rows = self._admin.execute(
+            "SELECT verified FROM known_difference WHERE title = ?", [title]
+        )
+        if not rows:
+            raise KeyError(f"unknown entry: {title}")
+        if int(rows[0][0]) == 1:
+            raise ValueError("entry is already verified")
         self._admin.execute(
             "UPDATE known_difference SET verified = 1 WHERE title = ?", [title]
         )

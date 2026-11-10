@@ -28,14 +28,19 @@ def run_review(store, action: str, title: str = "") -> str:
 
 
 def _list(store) -> str:
-    """List unverified candidates."""
+    """List unverified candidates.
+
+    The title sits on its own line so it can be copied
+    straight into an approve or reject command.
+    """
     candidates = store.list_candidates()
     if not candidates:
         return "no candidates waiting for review"
-    lines = [
-        f"{entry.title} (source: {entry.source_pattern})"
-        for entry in candidates
-    ]
+    lines = []
+    for entry in candidates:
+        lines.append(entry.title)
+        if entry.source_pattern:
+            lines.append(f"    source: {entry.source_pattern}")
     return "\n".join(lines)
 
 
