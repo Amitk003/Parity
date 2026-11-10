@@ -38,21 +38,46 @@ This page lists the Postgres versus Db2 differences that Parity has actually see
 - Category: ERROR
 - Why it matters: the same root cause as entry 3, but wider. Any expression-only query fails on Db2. Probes in `samples/probes.sql` reproduce all of them.
 
-### 5. Unaliased scalar expression column name
+### 5. Unaliased expression column name
 
-- Query: `SELECT UPPER(name) FROM demo_users WHERE id = 1`
+- Query: `SELECT UPPER(name) FROM customers WHERE id = 1`
 - Postgres column name: `upper`
 - Db2 column name: `1`
 - Category: COLUMN_NAME
 - Why it matters: the mismatch is not limited to aggregates. Any unaliased function call in the select list gets the expression text as its name on Db2.
+- Scale: found 9 times in a 129 query sample workload, which is 7 percent of the workload. The cases are `EXTRACT`, `UPPER`, `LENGTH`, `SUBSTRING`, and a multiplication.
 - Status: open. The `aggregate_alias` rule covers aggregates only. Extending it to scalar functions is future work.
+
+### 6. Aggregate scale on decimals
+
+- Query: `SELECT AVG(credit_limit) FROM customers`
+- Postgres value: `1786.2766666666666667` (16 decimal places)
+- Db2 value: `1786.2766666666666666666` (19 decimal places)
+- Category: VALUE
+- Why it matters: the two engines keep a different scale for a computed average. The values differ by 3.34e-17.
+- Status: known and handled. Parity compares decimals exactly first and then forgives a difference below 1e-9 absolute. A difference that no decimal scale can store is not a real difference. A real difference such as one unit of a DECIMAL(18,6) column is always reported.
 
 ## Matched probes (no divergence)
 
 These hypotheses were tested live and both databases agreed:
 
-- `SELECT name FROM demo_users ORDER BY name` including NULL ordering
-- `SELECT COUNT(*) FROM demo_users WHERE name IS NULL`
+- `SELECT name FROM customers ORDER BY name` including NULL ordering.
+- `SELECT COUNT(*) FROM customers WHERE name IS NULL`.
+- Text comparison with a trailing space in a stored column.
+
+## Divergences that were fixed
+
+These were found live and Parity now handles them:
+
+- Unaliased aggregate column name, fixed by the `aggregate_alias` rule.
+- `OFFSET` without `LIMIT`, fixed by the `offset_to_rows` rule. Db2 needs `OFFSET n ROWS`.
+
+## Engine bugs found by the sample workload
+
+The 129 query workload exposed two false positives in the engine. Both were real bugs in Parity, not in the databases:
+
+- Db2 returns a DECIMAL column as text, for example `1000.000000`, while Postgres returns a Decimal. Comparing them reported a type difference. The Db2 executor now converts decimal columns using the driver column type.
+- Db2 returns a BOOLEAN column as an integer, while Postgres returns a boolean. The comparator now treats `true` as `1` and `false` as `0`.
 
 ## Hypotheses still to confirm
 
@@ -68,9 +93,17 @@ These are expected from the proposal but have not been reproduced on live databa
 
 1. Run the probe on both databases.
 2. Record the SQL, both outputs, and the category.
-3. Add the query to `samples/probes.sql`.
+3. Add the query to `samples/probes/probes.sql`.
 4. Add a row here with status confirmed or open.
+
+## How to run the probes
+
+```bash
+parity run --dir samples/probes --bridge
+```
+
+The probes live in their own folder so the sample workload folder holds only real workload queries.
 
 ## Known limits
 
-This catalog is small. It grows as the probe suite grows. It never claims a difference that has not been seen on both databases.
+This catalog is small. It grows as the probe suite grows. It never claims a difference that has not been seen on both databases. The trailing space value difference is still open: the probe that would test it has no FROM clause, so Db2 rejects it.
