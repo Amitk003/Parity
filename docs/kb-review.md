@@ -16,7 +16,7 @@ parity kb-review --action list --store db2
 - `--action list` shows unverified candidates with their source pattern.
 - `--action approve` marks one candidate verified. Verified entries cannot be rejected later.
 - `--action reject` removes one unverified candidate.
-- `--store memory` is the default. `--store db2` writes to the Db2 knowledge base tables. On Windows this needs the Linux bridge environment, because the Windows ibm_db driver fails with SQL1042C.
+- `--store memory` is the default. `--store db2` writes to the Db2 knowledge base tables. On Windows the Db2 side goes through the bridge container, because the Windows ibm_db driver fails with SQL1042C. The bridge binds the parameters, so the values never become part of the SQL text. See docs/bridge-admin.md.
 
 Exit codes: 0 on success, 2 on any error such as an unknown title or a rejected attempt on a verified entry.
 
@@ -31,4 +31,5 @@ Exit codes: 0 on success, 2 on any error such as an unknown title or a rejected 
 
 - `src/parity/kb/review.py` holds the action logic. It is store agnostic and returns text, so tests cover it without a CLI.
 - `src/parity/cli.py` wires the `kb-review` command and maps errors to exit code 2.
+- `src/parity/kb/store.py` holds the stores. The Db2 store works with either admin client.
 - `list_candidates()` was added to the `KbStore` interface, `InMemoryKb`, and `Db2Kb`.
