@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from parity.translate.result import TranslationResult
+from parity.translate.schema import SchemaContext
 from parity.translate.select_list import postgres_label, select_items
 
 _CAST_TYPES = {
@@ -45,13 +46,14 @@ class Rule:
     """One rewrite rule.
 
     A rule either uses a pattern and a replacement, or a
-    rewrite function that changes the whole statement.
+    rewrite function that changes the whole statement. A
+    rewrite function can also need the schema.
     """
 
     name: str
     pattern: re.Pattern[str] | None = None
     replace: str | Callable[[re.Match[str]], str] | None = None
-    rewrite: Callable[[str], str] | None = None
+    rewrite: Callable[[str, SchemaContext | None], str] | None = None
 
 
 def _cast_repl(match: re.Match[str]) -> str:
@@ -61,7 +63,7 @@ def _cast_repl(match: re.Match[str]) -> str:
     return f"CAST({expr} AS {db2_type})"
 
 
-def _alias_expressions(sql: str) -> str:
+def _alias_expressions(sql: str, schema: SchemaContext | None = None) -> str:
     """Give every unaliased select item the name Postgres gives it.
 
     Db2 names an unaliased expression by its text, for
@@ -91,6 +93,37 @@ def _alias_expressions(sql: str) -> str:
 
 
 _SAFE_ALIAS = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+_SUM = re.compile(
+    r"\bSUM\s*\(\s*((?:[A-Za-z_][A-Za-z0-9_]*\s*\.\s*)?)([A-Za-z_][A-Za-z0-9_]*)\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _sum_to_bigint(sql: str, schema: SchemaContext | None = None) -> str:
+    """Cast an integer column to a bigint inside SUM.
+
+    Db2 returns an INTEGER for SUM of an INTEGER and the sum
+    can overflow. Postgres returns a bigint. The cast only
+    fires when the column type is known and holds a whole
+    number, so a decimal column keeps its value.
+    """
+    if schema is None:
+        return sql
+    from parity.ingest.models import extract_tables
+
+    tables = extract_tables(sql)
+    if not tables:
+        return sql
+
+    def replace(match: re.Match[str]) -> str:
+        prefix = match.group(1).replace(" ", "")
+        column = match.group(2)
+        if not schema.is_integer(tables, column):
+            return match.group(0)
+        return f"SUM(CAST({prefix}{column} AS BIGINT))"
+
+    return _SUM.sub(replace, sql)
 
 
 def _limit_repl(match: re.Match[str]) -> str:
@@ -144,6 +177,10 @@ _RULES: tuple[Rule, ...] = (
         ),
     ),
     Rule(
+        name="sum_to_bigint",
+        rewrite=_sum_to_bigint,
+    ),
+    Rule(
         name="alias_expressions",
         rewrite=_alias_expressions,
     ),
@@ -165,11 +202,13 @@ def find_untranslatable(sql: str) -> tuple[str, ...]:
     return tuple(name for name, pattern in _UNTRANSLATABLE if pattern.search(sql))
 
 
-def translate(sql: str) -> TranslationResult:
+def translate(sql: str, schema: SchemaContext | None = None) -> TranslationResult:
     """Translate one Postgres statement to Db2 SQL.
 
     Rules apply in order. The result records which
-    rules fired and which patterns need a human.
+    rules fired and which patterns need a human. A rule
+    that needs the column types does nothing when no
+    schema is given.
     """
     if not sql or not sql.strip():
         raise ValueError("empty SQL")
@@ -177,7 +216,7 @@ def translate(sql: str) -> TranslationResult:
     applied: list[str] = []
     for rule in _RULES:
         if rule.rewrite is not None:
-            new_text = rule.rewrite(result)
+            new_text = rule.rewrite(result, schema)
         else:
             new_text, count = rule.pattern.subn(rule.replace, result)
             if not count:
