@@ -41,6 +41,17 @@ AI agents suggest a translation, test data, and a fix. A plain Python engine run
 - CI ready. The build fails when parity is lost.
 - Safe by design. Disposable containers only. Read only queries on the source. No production data sent to a model.
 
+## What it has already found
+
+Parity ran against real PostgreSQL 16 and real IBM Db2 12.1.5.0. The sample workload has 130 queries over a shop schema.
+
+- On clean data all 130 queries matched.
+- With edge case rows loaded into both databases, 17 queries differed.
+- Nine differences between the two databases are confirmed with a probe each. The dangerous ones are an empty string and a string of blanks comparing equal on Db2, a sum of an integer column overflowing on Db2, and a limit over a sort key that is not unique picking different rows.
+- The agent loop diagnosed one of them, proposed a rewrite, and the engine proved the rewrite on both databases.
+
+See [docs/divergence-catalog.md](docs/divergence-catalog.md) for every difference with its probe.
+
 ## Quick start
 
 ```bash
@@ -49,12 +60,40 @@ cd Parity
 python -m venv .venv
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 # macOS or Linux: source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,db]"
 docker compose up -d
 parity run --help
 ```
 
-Full steps are in [docs/setup.md](docs/setup.md).
+Full steps are in [docs/setup.md](docs/setup.md). A full migration walkthrough is in [docs/migration-guide.md](docs/migration-guide.md).
+
+## The commands
+
+```bash
+parity ingest --dir samples                     # look at a workload before running it
+parity run --dir samples --bridge               # compare both databases and write a report
+parity run --dir samples --fix-loop --bridge    # let the agent try to fix a mismatch
+parity replay --dir samples --cache cache.json  # repeat a recorded run with no API key
+parity kb-capture --history parity-history.json # keep the proven lessons
+parity kb-review --action list --store db2      # review the lessons a human must approve
+```
+
+## Read the guides
+
+| Guide | What it covers |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | how the parts fit together |
+| [docs/migration-guide.md](docs/migration-guide.md) | a migration from end to end |
+| [docs/divergence-catalog.md](docs/divergence-catalog.md) | every known difference with a probe |
+| [docs/engine.md](docs/engine.md) | the rules that decide MATCH |
+| [docs/sql-translate.md](docs/sql-translate.md) | the translation rules |
+| [docs/fuzz-run.md](docs/fuzz-run.md) | the edge case run |
+| [docs/agent-fix-loop.md](docs/agent-fix-loop.md) | diagnose, fix, and prove |
+| [docs/kb-capture.md](docs/kb-capture.md) | keeping the lessons |
+| [docs/regression.md](docs/regression.md) | catching a break against the last good run |
+| [docs/ops-runbook.md](docs/ops-runbook.md) | running it day to day |
+| [docs/supported-versions.md](docs/supported-versions.md) | what is tested and what is not |
+| [docs/release-notes.md](docs/release-notes.md) | what is in this release |
 
 ## Architecture in 30 seconds
 
@@ -68,7 +107,11 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 
 ## Status
 
-Parity is under active development. Version 1 supports PostgreSQL as the source and IBM Db2 12.1.2 or later as the target. Parity gives strong evidence from real execution. It is not a formal mathematical proof. It cannot find a difference that its test data never triggers. We say so in the report instead of hiding it.
+Version 1.0.0. PostgreSQL as the source and IBM Db2 12.1.2 or later as the target. The tested versions are in [docs/supported-versions.md](docs/supported-versions.md).
+
+Parity gives strong evidence from real execution. It is not a formal mathematical proof. It cannot find a difference that its test data never triggers. We say so in the report instead of hiding it.
+
+What is not proved yet: a run against a real application workload, and a run of the agent loop against a real model.
 
 ## License
 
