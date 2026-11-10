@@ -14,7 +14,7 @@ import os
 
 SCHEMA_SQL = """
 CREATE TABLE customers (
-    id INTEGER NOT NULL,
+    id INTEGER NOT NULL PRIMARY KEY,
     name VARCHAR(100),
     email VARCHAR(150),
     country VARCHAR(2),
@@ -23,7 +23,7 @@ CREATE TABLE customers (
     active BOOLEAN
 );
 CREATE TABLE products (
-    id INTEGER NOT NULL,
+    id INTEGER NOT NULL PRIMARY KEY,
     name VARCHAR(100),
     category VARCHAR(50),
     price DECIMAL(10, 2),
@@ -31,7 +31,7 @@ CREATE TABLE products (
     discontinued BOOLEAN
 );
 CREATE TABLE orders (
-    id INTEGER NOT NULL,
+    id INTEGER NOT NULL PRIMARY KEY,
     customer_id INTEGER,
     order_date DATE,
     status VARCHAR(20),
@@ -39,7 +39,7 @@ CREATE TABLE orders (
     shipped BOOLEAN
 );
 CREATE TABLE order_items (
-    id INTEGER NOT NULL,
+    id INTEGER NOT NULL PRIMARY KEY,
     order_id INTEGER,
     product_id INTEGER,
     quantity INTEGER,
