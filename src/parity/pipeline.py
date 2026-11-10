@@ -117,6 +117,7 @@ def _process_query(
                 note=outcome.note,
                 settings=result.settings,
             )
+            db2_sql = outcome.final_sql
             applied_rules = ("agent_fix",)
         elif outcome.note:
             result = ComparisonResult(
