@@ -84,11 +84,28 @@ def _quantize(value: Decimal, scale: int) -> Decimal:
 
 
 def _fit_text(value: str, db2_type: str) -> str:
-    """Cut a text value to the column width."""
+    """Cut a text value to the column width.
+
+    Db2 counts the bytes of a VARCHAR, Postgres counts the
+    characters. A value is cut on a character boundary so
+    that the byte count fits. The value must load into both
+    databases, otherwise the test would only show a data
+    error.
+    """
     width = _width_of(db2_type)
-    if width is not None and len(value) > width:
-        return value[:width]
-    return value
+    if width is None:
+        return value
+    if len(value.encode("utf-8")) <= width:
+        return value
+    kept: list[str] = []
+    used = 0
+    for char in value:
+        size = len(char.encode("utf-8"))
+        if used + size > width:
+            break
+        kept.append(char)
+        used += size
+    return "".join(kept)
 
 
 def _max_decimal(db2_type: str) -> Decimal:

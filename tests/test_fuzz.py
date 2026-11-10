@@ -75,3 +75,12 @@ def test_plan_to_dict_json_safe():
     assert data["table"] == "demo_users"
     assert len(data["columns"]) == 2
     assert data["columns"][0]["value_count"] > 0
+
+
+def test_text_values_fit_the_byte_width():
+    """Db2 counts bytes, Postgres counts characters."""
+    from parity.fuzz.values import values_for_column
+
+    values = values_for_column("VARCHAR(2)", "unicode")
+    assert all(len(value.encode("utf-8")) <= 2 for value in values if value)
+    assert values != ()
