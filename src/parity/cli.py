@@ -121,6 +121,17 @@ def _pipeline_exit_code(reports) -> int:
     return 2
 
 
+def _build_schema(source_settings):
+    """Read the source schema for the type aware rules."""
+    from parity.translate.schema import schema_from_postgres
+
+    try:
+        return schema_from_postgres(source_settings)
+    except Exception as exc:  # noqa: BLE001 - a missing schema only disables type aware rules
+        print(f"schema not read, type aware rules are off: {exc}")
+        return None
+
+
 def _build_gateway(args) -> Gateway | None:
     """Build the optional gateway for the run command."""
     if not (args.llm_cache or args.replay):
@@ -164,8 +175,14 @@ def _run_pipeline(args) -> int:
     else:
         target = Db2Executor(db2_settings)
     gateway = _build_gateway(args)
+    schema = _build_schema(source_settings)
     reports = run_pipeline(
-        Path(args.dir), source, target, gateway=gateway, concurrency=args.concurrency
+        Path(args.dir),
+        source,
+        target,
+        gateway=gateway,
+        concurrency=args.concurrency,
+        schema=schema,
     )
     exit_code = _pipeline_exit_code(reports)
     run_id: int | None = None

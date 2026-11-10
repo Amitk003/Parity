@@ -60,7 +60,7 @@ def _agent_translate(
     return sql, ""
 
 
-def _process_query(query, source, target, gateway) -> QueryReport:
+def _process_query(query, source, target, gateway, schema=None) -> QueryReport:
     """Run one query through translate and compare."""
     if not query.read_only:
         result = ComparisonResult(
@@ -68,7 +68,7 @@ def _process_query(query, source, target, gateway) -> QueryReport:
             note="write query: not executed",
         )
         return QueryReport.from_result(query.query_id, query.source_sql, "", result)
-    translation = translate(query.source_sql)
+    translation = translate(query.source_sql, schema=schema)
     if translation.untranslatable:
         if gateway is None:
             result = ComparisonResult(
@@ -103,16 +103,24 @@ def run_pipeline(
     target: DatabaseExecutor,
     gateway: Gateway | None = None,
     concurrency: int = 1,
+    schema=None,
 ) -> list[QueryReport]:
-    """Run the full pipeline. Return report entries."""
+    """Run the full pipeline. Return report entries.
+
+    The optional schema gives the translator the column
+    types, so a type aware rule can fire.
+    """
     validate_row_limit(concurrency)
     queries = deduplicate(load_sql_dir(workload_dir))
     if concurrency == 1:
-        return [_process_query(query, source, target, gateway) for query in queries]
+        return [
+            _process_query(query, source, target, gateway, schema)
+            for query in queries
+        ]
     indexed: list[tuple[int, QueryReport]] = []
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = {
-            pool.submit(_process_query, query, source, target, gateway): index
+            pool.submit(_process_query, query, source, target, gateway, schema): index
             for index, query in enumerate(queries)
         }
         for future in as_completed(futures):

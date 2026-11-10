@@ -95,6 +95,7 @@ def run_fuzz_case(
     tables: tuple[TableDef, ...],
     rows_per_table: int = 20,
     seed: int = 42,
+    schema=None,
 ) -> tuple[tuple[FuzzOutcome, ...], list[QueryReport]]:
     """Load fuzz rows into both databases and run the workload.
 
@@ -120,5 +121,5 @@ def run_fuzz_case(
                 checksum=checksum_rows(rows),
             )
         )
-    reports = run_pipeline(workload_dir, source, target)
+    reports = run_pipeline(workload_dir, source, target, schema=schema)
     return tuple(outcomes), reports

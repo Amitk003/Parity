@@ -33,10 +33,12 @@ def main() -> int:
     from parity.fuzz.runner import run_fuzz_case
     from parity.sync.db2_admin import Db2Admin
     from parity.sync.schema import introspect_postgres
+    from parity.translate.schema import schema_from_postgres
 
     source_settings, db2_settings = load_settings()
     admin = Db2Admin(db2_settings)
     tables = introspect_postgres(source_settings)
+    schema = schema_from_postgres(source_settings)
     print("tables:", ", ".join(table.name for table in tables))
 
     outcomes, reports = run_fuzz_case(
@@ -48,6 +50,7 @@ def main() -> int:
         tables,
         rows_per_table=args.rows,
         seed=args.seed,
+        schema=schema,
     )
     for outcome in outcomes:
         print(
