@@ -29,14 +29,20 @@ def test_catalog_marks_hypotheses():
 
 
 def test_probe_suite_loads():
-    queries = load_sql_file(ROOT / "samples" / "probes.sql")
+    queries = load_sql_file(ROOT / "samples" / "probes" / "probes.sql")
     assert len(queries) >= 14
     assert all(query.read_only for query in queries)
 
 
 def test_probe_suite_covers_catalog_queries():
-    queries = load_sql_file(ROOT / "samples" / "probes.sql")
+    queries = load_sql_file(ROOT / "samples" / "probes" / "probes.sql")
     sqls = [query.source_sql for query in queries]
-    assert "SELECT COUNT(*) FROM demo_users" in sqls
+    assert "SELECT COUNT(*) FROM customers" in sqls
     assert "SELECT 1" in sqls
-    assert "SELECT UPPER(name) FROM demo_users WHERE id = 1" in sqls
+    assert "SELECT UPPER(name) FROM customers WHERE id = 1" in sqls
+
+
+def test_workload_dir_has_no_probes():
+    """The sample workload directory holds only the workload file."""
+    files = sorted(path.name for path in (ROOT / "samples").glob("*.sql"))
+    assert files == ["workload.sql"]
