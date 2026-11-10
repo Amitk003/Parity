@@ -40,5 +40,5 @@ A run of the 129 query sample workload produced 67 candidates. After approving o
 
 ## Known limits
 
-- The capture stores what the rule translator proved. A fix that came from an agent is captured the same way, because the run record does not say where the SQL came from yet.
+- The capture stores what the translator proved. A fix that came from the agent loop is captured the same way, because the run record says which rules fired and an agent fix has its own name, `agent_fix`.
 - One candidate per title. Two queries with the same rules and the same text are one lesson.
