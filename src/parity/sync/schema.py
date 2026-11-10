@@ -28,6 +28,16 @@ WHERE table_schema = 'public' AND table_name = %s
 ORDER BY ordinal_position
 """
 
+_PRIMARY_KEY_SQL = """
+SELECT kcu.table_name, kcu.column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+  ON tc.constraint_name = kcu.constraint_name
+ AND tc.table_schema = kcu.table_schema
+WHERE tc.constraint_type = 'PRIMARY KEY'
+  AND tc.table_schema = 'public'
+"""
+
 
 @dataclass(frozen=True)
 class ColumnDef:
@@ -36,6 +46,7 @@ class ColumnDef:
     name: str
     db2_type: str
     nullable: bool
+    primary_key: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,6 +88,8 @@ def introspect_postgres(settings: DatabaseSettings) -> tuple[TableDef, ...]:
     )
     tables: list[TableDef] = []
     with psycopg.connect(conninfo, autocommit=True) as conn, conn.cursor() as cursor:
+        cursor.execute(_PRIMARY_KEY_SQL)
+        primary_keys = {(row[0], row[1]) for row in cursor.fetchall()}
         cursor.execute(_TABLES_SQL)
         names = [row[0] for row in cursor.fetchall()]
         for name in names:
@@ -86,6 +99,7 @@ def introspect_postgres(settings: DatabaseSettings) -> tuple[TableDef, ...]:
                     name=row[0],
                     db2_type=map_type(row[1]),
                     nullable=row[2] == "YES",
+                    primary_key=(name, row[0]) in primary_keys,
                 )
                 for row in cursor.fetchall()
             )
