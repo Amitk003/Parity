@@ -89,6 +89,12 @@ def build_parser() -> argparse.ArgumentParser:
     kb.add_argument("--action", required=True, choices=("list", "approve", "reject"))
     kb.add_argument("--title", default="", help="Entry title for approve and reject")
     kb.add_argument("--store", choices=("memory", "db2"), default="memory")
+    capture = sub.add_parser(
+        "kb-capture", help="Store the proven lessons of a run as candidates"
+    )
+    capture.add_argument("--history", required=True, help="Run history file")
+    capture.add_argument("--run-id", type=int, default=0, help="Run id, 0 means the last run")
+    capture.add_argument("--store", choices=("memory", "db2"), default="db2")
     return parser
 
 
@@ -238,6 +244,34 @@ def _run_ingest(args) -> int:
     return 0
 
 
+def _run_kb_capture(args) -> int:
+    from parity.history.json_store import JsonRunStore
+    from parity.kb.capture import capture_run
+
+    history = JsonRunStore(Path(args.history))
+    runs = history.list_runs()
+    if not runs:
+        print("no run in the history file")
+        return 2
+    run = runs[-1]
+    if args.run_id:
+        match = [item for item in runs if item.run_id == args.run_id]
+        if not match:
+            print(f"unknown run id: {args.run_id}")
+            return 2
+        run = match[-1]
+    if args.store == "db2":
+        from parity.sync.bridge_admin import Db2BridgeAdmin
+
+        store = Db2Kb(Db2BridgeAdmin(load_settings()[1]))
+    else:
+        store = InMemoryKb()
+    added, skipped = capture_run(store, run)
+    print(f"run {run.run_id}: {added} candidates added, {skipped} already known")
+    print("review them with: parity kb-review --action list --store db2")
+    return 0
+
+
 def _run_kb_review(args) -> int:
     _, db2_settings = load_settings()
     if args.store == "db2":
@@ -281,6 +315,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_replay(args)
     if args.command == "ingest":
         return _run_ingest(args)
+    if args.command == "kb-capture":
+        return _run_kb_capture(args)
     if args.command == "kb-review":
         return _run_kb_review(args)
     return _run_compare(args)
