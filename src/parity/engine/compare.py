@@ -30,15 +30,22 @@ class EngineConfig:
     """Settings for one comparison run.
 
     float_tolerance is a relative tolerance for float values.
-    Decimal and int values always need an exact match.
+    decimal_tolerance is an absolute tolerance for decimal
+    values. Decimal values compare exactly first. The
+    tolerance only forgives a difference that no decimal
+    scale can store, such as the scale of a computed
+    average. A real value difference is always reported.
     """
 
     float_tolerance: float = 1e-9
+    decimal_tolerance: Decimal = Decimal("1e-9")
     ignore_row_order: bool | None = None
 
     def __post_init__(self) -> None:
         if self.float_tolerance < 0:
             raise ValueError("float_tolerance cannot be negative")
+        if self.decimal_tolerance < 0:
+            raise ValueError("decimal_tolerance cannot be negative")
 
 
 def query_has_order_by(sql: str) -> bool:
@@ -49,16 +56,31 @@ def query_has_order_by(sql: str) -> bool:
 def _settings(config: EngineConfig, order_matters: bool) -> tuple[tuple[str, str], ...]:
     return (
         ("float_tolerance", repr(config.float_tolerance)),
+        ("decimal_tolerance", repr(config.decimal_tolerance)),
         ("row_order_matters", str(order_matters)),
     )
 
 
-def _values_equal(left: Any, right: Any, tolerance: float) -> tuple[bool, DiffKind | None]:
+def _within_tolerance(left: Decimal | float, right: Decimal | float, tolerance: float) -> bool:
+    """True when two numbers differ only by the tolerance."""
+    scale = max(abs(float(left)), abs(float(right)), 1.0)
+    return abs(float(left) - float(right)) <= tolerance * scale
+
+
+def _values_equal(
+    left: Any, right: Any, tolerance: float, decimal_tolerance: Decimal
+) -> tuple[bool, DiffKind | None]:
     """Compare two normalized values. Return equal flag and diff kind."""
     if left is None and right is None:
         return True, None
     if left is None or right is None:
         return False, DiffKind.NULL_VS_VALUE
+    if isinstance(left, bool) != isinstance(right, bool):
+        if isinstance(left, bool) and isinstance(right, (int, Decimal)):
+            return (1 if left else 0) == right, None if right == (1 if left else 0) else DiffKind.TYPE
+        if isinstance(right, bool) and isinstance(left, (int, Decimal)):
+            return (1 if right else 0) == left, None if left == (1 if right else 0) else DiffKind.TYPE
+        return False, DiffKind.TYPE
     if type(left) is not type(right):
         if isinstance(left, Decimal) and isinstance(right, float) or isinstance(left, float) and isinstance(right, Decimal):
             pass
@@ -69,8 +91,13 @@ def _values_equal(left: Any, right: Any, tolerance: float) -> tuple[bool, DiffKi
         right_f = float(right)
         if math.isnan(left_f) and math.isnan(right_f):
             return True, None
-        scale = max(1.0, abs(left_f), abs(right_f))
-        if abs(left_f - right_f) <= tolerance * scale:
+        if _within_tolerance(left_f, right_f, tolerance):
+            return True, None
+        return False, DiffKind.VALUE
+    if isinstance(left, Decimal) and isinstance(right, Decimal):
+        if left == right:
+            return True, None
+        if abs(left - right) <= decimal_tolerance:
             return True, None
         return False, DiffKind.VALUE
     if left == right:
@@ -157,7 +184,10 @@ def compare_result_sets(
     for row_index, (left_row, right_row) in enumerate(pairs):
         for col_index, column in enumerate(source.columns):
             equal, kind = _values_equal(
-                left_row[col_index], right_row[col_index], cfg.float_tolerance
+                left_row[col_index],
+                right_row[col_index],
+                cfg.float_tolerance,
+                cfg.decimal_tolerance,
             )
             if not equal:
                 diffs.append(
