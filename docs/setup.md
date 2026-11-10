@@ -34,10 +34,10 @@ This document tells you how to run Parity on your machine.
    source .venv/bin/activate
    ```
 
-3. Install the project in dev mode.
+3. Install the project in dev mode. The `db` extra adds the database drivers.
 
    ```bash
-   pip install -e ".[dev]"
+   pip install -e ".[dev,db]"
    ```
 
 4. Start the databases.
