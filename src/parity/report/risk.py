@@ -57,9 +57,17 @@ class QueryReport:
     result: ComparisonResult
     score: int = 0
     label: str = "LOW"
+    applied_rules: tuple[str, ...] = ()
 
     @classmethod
-    def from_result(cls, query_id: str, source_sql: str, db2_sql: str, result: ComparisonResult) -> QueryReport:
+    def from_result(
+        cls,
+        query_id: str,
+        source_sql: str,
+        db2_sql: str,
+        result: ComparisonResult,
+        applied_rules: tuple[str, ...] = (),
+    ) -> QueryReport:
         """Build a report entry and score it."""
         score = risk_score(result)
         return cls(
@@ -69,4 +77,5 @@ class QueryReport:
             result=result,
             score=score,
             label=risk_label(score),
+            applied_rules=applied_rules,
         )

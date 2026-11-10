@@ -89,12 +89,20 @@ def _process_query(query, source, target, gateway, schema=None) -> QueryReport:
             )
             return QueryReport.from_result(query.query_id, query.source_sql, "", result)
         db2_sql = quote_table(agent_sql, query.tables[0] if query.tables else None)
+        applied_rules = ("agent_translation",)
     else:
         db2_sql = quote_table(
             translation.db2_sql, query.tables[0] if query.tables else None
         )
+        applied_rules = translation.applied_rules
     result = run_comparison(source, target, query.source_sql, db2_sql)
-    return QueryReport.from_result(query.query_id, query.source_sql, db2_sql, result)
+    return QueryReport.from_result(
+        query.query_id,
+        query.source_sql,
+        db2_sql,
+        result,
+        applied_rules=applied_rules,
+    )
 
 
 def run_pipeline(
